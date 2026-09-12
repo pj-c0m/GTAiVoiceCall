@@ -1,0 +1,813 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23121314' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M5 9v6M9.5 5v14M14 8v8M18.5 10v4'/%3E%3C/svg%3E">
+<title>Линия · GPT-Live</title>
+<style>
+/* ── Светлая студийная система: белое поле, серые плашки, графит и лайм ── */
+:root{
+  color-scheme: light;
+  --page:#FFFFFF; --panel:#FFFFFF; --panel-2:#F3F4F4; --panel-3:#E9EAEA; --side:#F7F7F7;
+  --ink:#121314; --ink-2:#5B5F63; --ink-3:#8F9397; --rule:#DEE0E2; --rule-soft:#ECEDEE;
+  --lime:#D6FF57; --lime-hover:#C9F542; --lime-deep:#9EDC1C; --lime-text:#78B300; --lime-soft:#EFFFC2;
+  --you:#2A2D30; --danger:#E0463A;
+  --sans:"Helvetica Neue","Inter",-apple-system,system-ui,"Segoe UI",Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,"Cascadia Mono",Consolas,monospace;
+  --r-card:14px; --r-field:11px;
+}
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+html,body{height:100%}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--page);color:var(--ink);font:400 14.5px/1.5 var(--sans);letter-spacing:-.005em}
+h1,h2,h3{margin:0;font-weight:700;letter-spacing:-.03em}
+button,select,textarea,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px;border-radius:6px}
+
+/* ── Каркас: шапка сверху, управление слева, сцена справа ────── */
+.app{display:grid;grid-template-columns:400px minmax(0,1fr);grid-template-rows:64px minmax(0,1fr);height:100vh;height:100dvh}
+.top{grid-column:1 / -1;display:flex;align-items:center;gap:22px;padding:0 24px;border-bottom:1px solid var(--rule-soft)}
+.wordmark{display:flex;align-items:baseline;gap:4px;line-height:1;margin-right:6px}
+.wordmark h1{font-size:28px;letter-spacing:-.04em}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--ink-3);transform:translateY(-1px);transition:background .25s}
+[data-phase="connecting"] .dot{background:var(--lime-deep);animation:pulse 1.2s infinite}
+[data-phase="live"] .dot{background:var(--lime-deep);box-shadow:0 0 0 0 rgba(158,220,28,.55);animation:pulse 2s infinite}
+[data-phase="ended"] .dot{background:var(--ink)}
+@keyframes pulse{70%{box-shadow:0 0 0 8px rgba(158,220,28,0)}100%{box-shadow:0 0 0 0 rgba(158,220,28,0)}}
+.top .spacer{flex:1}
+.lamp{display:inline-flex;align-items:center;gap:10px;padding:8px 14px;border-radius:999px;background:var(--panel-2);font-size:13px;color:var(--ink-2);white-space:nowrap}
+.timer{font:600 13px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--ink);padding-left:10px;border-left:1px solid var(--rule)}
+
+/* Три линии — сегментированная таблетка в шапке */
+.modes{display:inline-grid;grid-template-columns:repeat(3,auto);gap:3px;padding:3px;border-radius:999px;background:var(--panel-2)}
+.modes button{padding:7px 15px;border:0;border-radius:999px;background:transparent;color:var(--ink-2);font-size:13.5px;font-weight:500;cursor:pointer;transition:background .15s,color .15s;white-space:nowrap}
+.modes button b{font-weight:600;color:inherit}
+.modes button span{display:none}
+.modes button[aria-selected="true"]{background:var(--panel);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px rgba(0,0,0,.03)}
+.modes button:hover:not([aria-selected="true"]){color:var(--ink)}
+[data-phase="connecting"] .modes,[data-phase="live"] .modes{pointer-events:none;opacity:.5}
+
+/* ── Управление ──────────────────────────────────────────────── */
+.controls{background:var(--side);border-right:1px solid var(--rule-soft);padding:14px 20px 20px;overflow:auto;min-height:0}
+[data-phase="connecting"] .controls,[data-phase="live"] .controls{pointer-events:none;opacity:.55}
+.lede{font-size:13px;line-height:1.4;color:var(--ink-2);margin:0 0 12px}
+.lede em{font-style:normal;color:var(--ink);font-weight:600}
+.field{margin-bottom:11px}
+.field > .name{display:flex;align-items:baseline;gap:6px;font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:6px;white-space:nowrap}
+.field .name small{color:var(--ink-3);font-weight:400;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
+select,textarea,input[type=text],input[type=tel]{
+  width:100%;background:var(--panel);border:1px solid var(--rule);border-radius:var(--r-field);
+  padding:9px 12px;font-size:14px;color:var(--ink);transition:border-color .15s,box-shadow .15s;
+}
+select:focus,textarea:focus,input:focus{outline:0;border-color:var(--ink);box-shadow:0 0 0 3px rgba(18,19,20,.06)}
+textarea{min-height:70px;resize:vertical;line-height:1.45}
+textarea.prompt{min-height:96px;font-size:13.5px}
+textarea.list{min-height:58px;font-family:var(--mono);font-size:12.5px;line-height:1.55}
+select{padding-right:36px;appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--ink-2) 50%),linear-gradient(135deg,var(--ink-2) 50%,transparent 50%);
+  background-position:calc(100% - 17px) 16px,calc(100% - 12px) 16px;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+.hint{font-size:12px;color:var(--ink-3);margin:5px 0 0}
+.row{display:flex;gap:12px}
+.row > .field{flex:1 1 0;min-width:0}
+
+/* Файлы-инструкции */
+.drop{border:1px dashed var(--rule);border-radius:var(--r-field);background:var(--panel);padding:6px 8px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:background .15s,border-color .15s}
+.drop.over{border-color:var(--lime-deep);background:var(--lime-soft)}
+.drop input{display:none}
+.drop .pick{padding:6px 12px;border:0;border-radius:999px;background:var(--ink);color:#fff;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap}
+.drop .what{font-size:12.5px;color:var(--ink-3)}
+.slips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.slips:empty{display:none}
+.slip{display:inline-flex;align-items:center;gap:7px;padding:5px 6px 5px 10px;background:var(--panel);border:1px solid var(--rule);border-radius:999px;font-size:12.5px;font-weight:500}
+.slip small{font:400 11px/1 var(--mono);color:var(--ink-3)}
+.slip button{border:0;background:transparent;color:var(--ink-3);font-size:15px;line-height:1;padding:0 2px;cursor:pointer}
+.slip button:hover{color:var(--ink)}
+
+.call{margin-top:4px;width:100%;display:inline-flex;align-items:center;justify-content:center;gap:10px;padding:13px 20px;border:0;border-radius:999px;
+  background:var(--lime);color:var(--ink);font-size:15px;font-weight:600;letter-spacing:-.01em;cursor:pointer;transition:background .15s,transform .15s}
+.call:hover{background:var(--lime-hover)}
+.call:active{transform:scale(.99)}
+.call:disabled{opacity:.45;cursor:default}
+.call .ring{width:9px;height:9px;border-radius:50%;background:var(--ink)}
+.notice{margin:12px 0 0;padding:10px 12px;border-radius:var(--r-field);background:#FDECEA;font-size:13px;color:#8A2A20}
+.notice:empty{display:none}
+.pbxstate{font-size:12px;color:var(--ink-3);margin:6px 0 8px}
+
+/* Очередь */
+.queue{margin:8px 0 0;border:1px solid var(--rule-soft);border-radius:var(--r-field);background:var(--panel);overflow:hidden}
+.queue:empty{display:none}
+.qrow{display:grid;grid-template-columns:20px minmax(0,1fr) minmax(0,1fr) 96px;gap:8px;align-items:center;padding:7px 10px;border-top:1px solid var(--rule-soft);font-size:12.5px}
+.qrow:first-child{border-top:0}
+.qrow .n{font:400 11px/1 var(--mono);color:var(--ink-3)}
+.qrow .num{font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums}
+.qrow .st{display:inline-flex;align-items:center;gap:6px;color:var(--ink-2);white-space:nowrap}
+.qrow .st::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ink-3);flex:none}
+.qrow[data-st="active"] .st::before{background:var(--lime-deep);box-shadow:0 0 0 3px var(--lime-soft)}
+.qrow[data-st="done"] .st::before{background:var(--ink)}
+.qrow[data-st="failed"] .st::before{background:var(--danger)}
+.qrow .res{display:none}
+.qrow[data-id]{cursor:pointer}
+.qrow[data-id]:hover{background:var(--panel-2)}
+
+/* ── Сцена ───────────────────────────────────────────────────── */
+.stage{display:flex;flex-direction:column;min-height:0;padding:18px 24px 0}
+.duplex{position:relative;flex:none;background:var(--panel-2);border-radius:var(--r-card);overflow:hidden}
+.duplex canvas{display:block;width:100%;height:96px}
+.duplex .tag{position:absolute;left:14px;font:600 11px/1 var(--sans);letter-spacing:.02em}
+.duplex .tag.you{top:calc(50% - 22px);color:var(--ink)}
+.duplex .tag.agent{top:calc(50% + 11px);color:var(--lime-text)}
+.work{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;margin-top:18px}
+.threadwrap{min-height:0;overflow:auto;padding-right:6px;padding-bottom:90px}
+.rail{min-height:0;overflow:auto;display:flex;flex-direction:column;gap:14px;padding-bottom:90px}
+
+.thread{min-height:120px}
+.turn{display:grid;grid-template-columns:48px minmax(0,1fr);gap:0 14px;padding:12px 0;border-top:1px solid var(--rule-soft)}
+.thread .turn:first-child{border-top:0}
+.turn .at{font:400 11.5px/1.9 var(--mono);color:var(--ink-3);font-variant-numeric:tabular-nums}
+.turn .who{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600;margin-bottom:3px}
+.turn .who::before{content:"";width:7px;height:7px;border-radius:50%}
+.turn.you .who::before{background:var(--you)}
+.turn.agent .who::before{background:var(--lime-deep)}
+.turn .said{margin:0;max-width:66ch}
+.turn.you .said{font-size:14.5px;line-height:1.5;color:var(--ink-2)}
+.turn.agent .said{font-size:16px;line-height:1.5;color:var(--ink);letter-spacing:-.01em}
+.turn.open .said::after{content:"▍";color:var(--lime-deep);animation:blink 1.1s steps(2) infinite;margin-left:1px}
+@keyframes blink{50%{opacity:0}}
+.thread .empty{padding:26px 2px;color:var(--ink-3);font-size:14px;max-width:48ch}
+.thread .empty b{display:block;font-weight:600;color:var(--ink);font-size:16px;margin-bottom:4px;letter-spacing:-.02em}
+
+.rail section{background:var(--panel-2);border-radius:var(--r-card);padding:14px 14px 12px;flex:none}
+.rail section > h2{font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:10px;letter-spacing:-.01em}
+.task{background:var(--panel);border-radius:10px;padding:10px 11px;margin-bottom:8px}
+.task .head{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500}
+.task .head .st{width:7px;height:7px;border-radius:50%;background:var(--lime-deep);box-shadow:0 0 0 3px var(--lime-soft);flex:none}
+.task.done .head .st{background:var(--ink);box-shadow:none}
+.task.done .head{color:var(--ink-2);font-weight:400}
+.task .ms{margin-left:auto;font:400 11px/1 var(--mono);color:var(--ink-3);font-variant-numeric:tabular-nums}
+.task .steps{margin:7px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:3px}
+.task .steps li{font-size:12px;color:var(--ink-2);padding-left:10px;position:relative;overflow-wrap:anywhere}
+.task .steps li::before{content:"";position:absolute;left:0;top:8px;width:4px;height:1px;background:var(--ink-3)}
+.task .say{margin:7px 0 0;font-size:12.5px;line-height:1.4;color:var(--ink-2);padding-top:7px;border-top:1px dashed var(--rule)}
+.rail .none{font-size:12.5px;color:var(--ink-3);margin:0}
+.facts{margin:0;font-size:12.5px}
+.facts div{display:flex;gap:8px;padding:5px 0;border-bottom:1px solid var(--rule-soft)}
+.facts div:last-child{border-bottom:0}
+.facts dt{color:var(--ink-3);flex:none;width:88px}
+.facts dd{margin:0;color:var(--ink);overflow-wrap:anywhere}
+.facts .num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.rail .queue{margin:0;border:0;background:var(--panel)}
+.rail .qrow{grid-template-columns:18px minmax(0,1fr) 84px;font-size:12px;padding:7px 9px}
+.rail .qrow .num{display:none}
+.log summary{font-size:12.5px;color:var(--ink-3);cursor:pointer;list-style:none}
+.log summary::-webkit-details-marker{display:none}
+.log summary::before{content:"+ ";font-family:var(--mono)}
+.log[open] summary::before{content:"− "}
+.log pre{max-height:220px;overflow:auto;background:var(--panel);border-radius:10px;margin:8px 0 0;padding:8px 10px;font:400 11px/1.65 var(--mono);color:var(--ink-2)}
+.log b{font-weight:600;color:var(--ink)}
+
+/* Итог */
+.wrapup{display:none;background:var(--panel-2);border-radius:var(--r-card);padding:18px 20px;margin-bottom:14px}
+[data-phase="ended"] .wrapup{display:block}
+.wrapup h2{font-size:18px;margin-bottom:10px;letter-spacing:-.025em}
+.wrapup .facts div{border-color:var(--rule)}
+.wrapup .again{margin-top:14px;padding:10px 20px;border:0;background:var(--ink);color:#fff;border-radius:999px;font-size:14px;font-weight:500;cursor:pointer}
+.wrapup .again:hover{background:#000}
+
+/* Нижняя панель — внутри сцены */
+.dock{position:absolute;left:0;right:0;bottom:18px;display:none;justify-content:center;pointer-events:none}
+.stage{position:relative}
+[data-phase="live"] .dock{display:flex}
+.dock .bar{pointer-events:auto;display:flex;align-items:center;gap:8px;background:var(--panel);border-radius:999px;padding:7px 7px 7px 16px;
+  box-shadow:0 14px 40px -14px rgba(18,19,20,.35),0 0 0 1px rgba(0,0,0,.05)}
+.dock .state{font-size:13.5px;font-weight:500;color:var(--ink);margin-right:8px}
+.dock button{padding:9px 16px;border-radius:999px;border:0;background:var(--panel-2);color:var(--ink);font-size:13.5px;font-weight:500;cursor:pointer;transition:background .15s}
+.dock button:hover{background:var(--panel-3)}
+.dock .hang{background:var(--ink);color:#fff}
+.dock .hang:hover{background:#000}
+.dock button[aria-pressed="true"]{background:var(--lime);color:var(--ink)}
+
+@media (max-width:1100px){.app{grid-template-columns:360px minmax(0,1fr)} .work{grid-template-columns:minmax(0,1fr) 260px;gap:18px}}
+@media (max-width:900px){
+  .app{display:block;height:auto}
+  .top{flex-wrap:wrap;height:auto;padding:14px 16px;gap:12px}
+  .top .spacer{display:none}
+  .modes{order:3;width:100%;display:grid;grid-template-columns:repeat(3,1fr)}
+  .modes button{padding:8px 6px;text-align:center;font-size:13px}
+  .controls{border-right:0;border-bottom:1px solid var(--rule-soft);overflow:visible;padding:16px}
+  .stage{padding:14px 16px 100px;overflow:visible}
+  .duplex{position:sticky;top:0;z-index:5}
+  .duplex canvas{height:72px}
+  .work{grid-template-columns:minmax(0,1fr);gap:18px}
+  .threadwrap,.rail{overflow:visible;padding-bottom:0}
+  .turn{grid-template-columns:minmax(0,1fr);gap:2px;position:relative;padding-right:48px}
+  .turn .at{position:absolute;right:0;top:13px;font-size:11px}
+  .dock{position:fixed;bottom:14px;padding:0 12px}
+  .dock .state{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.001ms !important;transition-duration:.001ms !important}}
+@media print{.controls,.duplex,.dock,.log{display:none !important} .app{display:block;height:auto} .turn{break-inside:avoid}}
+</style>
+</head>
+<body data-phase="idle">
+<div class="app">
+
+  <header class="top">
+    <div class="wordmark"><h1>Линия</h1><span class="dot" aria-hidden="true"></span></div>
+    <nav class="modes" role="tablist" aria-label="Режим">
+      <button role="tab" data-mode="free" aria-selected="true"><b>Разговор</b><span>Просто поговорить с агентом голосом</span></button>
+      <button role="tab" data-mode="prompt" aria-selected="false"><b>С промптом</b><span>Задать роль, приложить файлы-инструкции</span></button>
+      <button role="tab" data-mode="phone" aria-selected="false"><b>Телефония</b><span>Позвонить по списку номеров, по очереди</span></button>
+    </nav>
+    <div class="spacer"></div>
+    <div class="lamp"><span id="lampText" aria-live="polite">Линия свободна</span><span class="timer" id="timer" hidden>0:00</span></div>
+  </header>
+
+  <aside class="controls" id="setup">
+    <p class="lede" id="lede"></p>
+
+    <div id="brief" hidden>
+      <div class="field">
+        <label class="name" for="base">Основа <small>подставит готовый профиль, его можно править</small></label>
+        <select id="base"><option value="">— без основы, только мой промпт —</option></select>
+      </div>
+      <div class="field">
+        <label class="name" for="prompt">Промпт <small>кто говорит, как говорит, что должен сделать</small></label>
+        <textarea id="prompt" class="prompt" placeholder="Например: Ты — Анна, администратор клиники «Улыбка». Говоришь коротко и вежливо, на «вы». Подтверди запись на приём и напомни взять полис. Цены — из приложенных файлов, ничего не выдумываешь."></textarea>
+      </div>
+      <div class="field">
+        <span class="name">Файлы-инструкции <small>txt, md, csv, json, pdf, docx — в базу знаний</small></span>
+        <label class="drop" id="drop">
+          <input type="file" id="files" multiple accept=".txt,.md,.csv,.json,.pdf,.docx,.html">
+          <span class="pick">Выбрать файлы</span>
+          <span class="what">или перетащите сюда</span>
+        </label>
+        <div class="slips" id="slips"></div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field"><label class="name" for="voice">Голос</label><select id="voice"></select></div>
+      <div class="field" id="contextField" hidden>
+        <label class="name" for="context">Заметка <small>что изменилось сегодня</small></label>
+        <input type="text" id="context" placeholder="Сегодня эфир в 13:00">
+      </div>
+    </div>
+
+    <div id="phonePane" hidden>
+      <div class="field">
+        <label class="name" for="numbers">Кому звонить <small>номер и имя, по одному на строку или через запятую</small></label>
+        <textarea id="numbers" class="list" placeholder="+7 900 000-00-00 Иван&#10;+7 900 000-00-01 Мария"></textarea>
+        <p class="pbxstate" id="pbxState">Мост с АТС: проверяю…</p>
+      </div>
+      <button class="call" id="dial"><span class="ring"></span>Позвонить по очереди</button>
+    </div>
+
+    <button class="call" id="call"><span class="ring"></span>Начать разговор</button>
+    <p class="notice" id="notice"></p>
+  </aside>
+
+  <main class="stage">
+    <div class="duplex">
+      <canvas id="meter" aria-hidden="true"></canvas>
+      <span class="tag you">Вы</span>
+      <span class="tag agent">Агент</span>
+    </div>
+
+    <div class="work">
+      <div class="threadwrap">
+        <section class="wrapup" id="wrapup" aria-live="polite">
+          <h2 id="wrapTitle">Разговор завершён</h2>
+          <dl class="facts" id="summary"></dl>
+          <button class="again" id="again">Начать заново</button>
+        </section>
+        <div class="thread" id="thread">
+          <div class="empty"><b>Здесь будет расшифровка.</b>Выберите режим, задайте роль или список номеров слева — обе дорожки пишутся одновременно, видно, когда вы с агентом говорите разом.</div>
+        </div>
+      </div>
+      <aside class="rail">
+        <section id="queueSection" hidden><h2>Очередь звонков</h2><div class="queue" id="queueLive"></div></section>
+        <section><h2>Фоновая работа</h2><div id="tasks"><p class="none">Агент пока справляется сам.</p></div></section>
+        <section><h2>Сессия</h2><dl class="facts" id="facts"><div><dt>Статус</dt><dd>линия свободна</dd></div></dl></section>
+        <details class="log"><summary>Журнал событий</summary><pre id="log"></pre></details>
+      </aside>
+    </div>
+
+    <div class="dock">
+      <div class="bar">
+        <span class="state" id="dockState">Слушаю</span>
+        <button id="monitor" aria-pressed="true" hidden>Слышно</button>
+        <button id="mic" aria-pressed="false">Выключить микрофон</button>
+        <button id="stopQueue" hidden>Остановить очередь</button>
+        <button id="hang" class="hang">Завершить</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<audio id="out" autoplay></audio>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const DEMO = new URLSearchParams(location.search).has("demo");   // ?demo=1 — интерфейс без микрофона
+const body = document.body;
+const ui = {
+  lamp:$("lampText"), timer:$("timer"), thread:$("thread"), tasks:$("tasks"), facts:$("facts"), log:$("log"),
+  notice:$("notice"), call:$("call"), dial:$("dial"), mic:$("mic"), hang:$("hang"), dockState:$("dockState"),
+  summary:$("summary"), wrapTitle:$("wrapTitle"), voice:$("voice"), base:$("base"), prompt:$("prompt"),
+  files:$("files"), drop:$("drop"), slips:$("slips"), context:$("context"), contextField:$("contextField"),
+  numbers:$("numbers"), queueLive:$("queueLive"), queueSection:$("queueSection"),
+  pbxState:$("pbxState"), monitor:$("monitor"), stopQueue:$("stopQueue"), out:$("out"), lede:$("lede"),
+  brief:$("brief"), phonePane:$("phonePane"),
+};
+
+let uiMode = "free";                 // free | prompt | phone — выбранная «линия»
+let mode = "web", phone = null, callReason = "";
+let session = null, meta = null, startedAt = 0, usageSeconds = 0, muted = false, finalized = false;
+let pc, events, mic, audioCtx, closeTimer, tickTimer;
+let attached = [];                    // файлы-инструкции: {name, chars, text}
+let campaign = null;                  // очередь звонков: {id, entries}
+const turns = [], tasks = new Map();
+const level = { you:0, agent:0 };
+const LEDES = {
+  free: "Просто <em>поговорите с агентом</em>: он слушает и отвечает одновременно, а сложные вопросы отдаёт бэкенду с поиском по вебу.",
+  prompt: "Напишите, <em>кто говорит и что должен сделать</em>, приложите инструкции — агент будет опираться на них, а не на догадки.",
+  phone: "Промпт и файлы те же, только агент <em>сам звонит</em> по списку, по очереди. Транскрипт и звук — справа.",
+};
+
+/* ── Конфигурация ───────────────────────────────────────────── */
+const config = await fetch("/api/config").then(r => r.json()).catch(() => null);
+if (config) {
+  ui.voice.innerHTML = config.voices.map(v => `<option value="${v}">${v}</option>`).join("");
+  ui.voice.value = config.defaultVoice ?? "alloy";
+  ui.base.innerHTML += config.profiles.map(p => `<option value="${p.id}">${p.label}</option>`).join("");
+  const wanted = new URLSearchParams(location.search).get("profile");
+  if (wanted && config.profiles.some(p => p.id === wanted)) { ui.base.value = wanted; loadBase(); setMode(config.profiles.find(p => p.id === wanted).phone ? "phone" : "prompt"); }
+  if (!config.hasKey) fail("На сервере не задан OPENAI_API_KEY — впишите ключ в .env и перезапустите.");
+  const showPbx = (pbx) => {
+    ui.pbxState.textContent = !pbx.configured ? "Мост с АТС не настроен: нет BRIDGE_URL и BRIDGE_TOKEN в .env"
+      : pbx.connected ? "Мост с АТС подключён" : "Мост с АТС: нет связи с сервером телефонии — переподключаюсь…";
+    if (!campaign) ui.dial.disabled = !pbx.connected;
+  };
+  showPbx(config.pbx ?? {});
+  setInterval(async () => { try { showPbx(await fetch("/api/pbx/status").then(r => r.json())); } catch {} }, 4000);
+}
+function loadBase(){
+  const p = config?.profiles.find(x => x.id === ui.base.value);
+  ui.prompt.value = p ? p.speech : "";
+  if (p?.voice) ui.voice.value = p.voice;
+}
+ui.base.addEventListener("change", loadBase);
+
+/* ── Режимы ─────────────────────────────────────────────────── */
+function setMode(m){
+  uiMode = m;
+  document.querySelectorAll(".modes button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.mode === m)));
+  ui.lede.innerHTML = LEDES[m];
+  ui.brief.hidden = m === "free";
+  ui.contextField.hidden = m === "free";
+  ui.phonePane.hidden = m !== "phone";
+  ui.call.hidden = m === "phone";
+  document.querySelector(".tag.you").textContent = m === "phone" ? "Клиент" : "Вы";
+  try { localStorage.setItem("mode", m); } catch {}
+}
+document.querySelectorAll(".modes button").forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
+let savedMode = "free"; try { savedMode = localStorage.getItem("mode") || "free"; } catch {}
+if (!new URLSearchParams(location.search).get("profile")) setMode(savedMode);
+
+/* ── Файлы-инструкции ───────────────────────────────────────── */
+function renderSlips(){
+  ui.slips.innerHTML = attached.map((f, i) => `<span class="slip">${f.name}<small>${f.chars < 1000 ? f.chars + " зн." : (f.chars / 1000).toFixed(1) + "k"}</small><button type="button" data-i="${i}" title="Убрать">×</button></span>`).join("");
+  ui.slips.querySelectorAll("button").forEach(b => b.addEventListener("click", () => { attached.splice(Number(b.dataset.i), 1); renderSlips(); }));
+}
+async function addFiles(list){
+  for (const file of list) {
+    if (file.size > 20 * 1024 * 1024) { fail(`${file.name}: больше 20 МБ`); continue; }
+    const data = await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result.split(",")[1]); r.onerror = no; r.readAsDataURL(file); });
+    const res = await fetch("/api/files", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ name: file.name, data }) });
+    const out = await res.json().catch(() => ({ error:"не разобрал ответ" }));
+    if (!res.ok) { fail(`${file.name}: ${out.error}`); continue; }
+    attached.push(out); renderSlips();
+  }
+}
+ui.files.addEventListener("change", () => { addFiles([...ui.files.files]); ui.files.value = ""; });
+ui.drop.addEventListener("dragover", (e) => { e.preventDefault(); ui.drop.classList.add("over"); });
+ui.drop.addEventListener("dragleave", () => ui.drop.classList.remove("over"));
+ui.drop.addEventListener("drop", (e) => { e.preventDefault(); ui.drop.classList.remove("over"); addFiles([...e.dataTransfer.files]); });
+
+// Что уходит на сервер при старте (браузер или телефон)
+const brief = () => ({
+  profile: uiMode === "free" ? "free" : (ui.base.value || undefined),
+  instructions: uiMode === "free" ? "" : ui.prompt.value,
+  files: uiMode === "free" ? [] : attached.map(f => ({ name: f.name, text: f.text })),
+  voice: ui.voice.value, context: uiMode === "free" ? "" : ui.context.value,
+});
+
+/* ── Список номеров → очередь ───────────────────────────────── */
+function parseNumbers(text){
+  const out = [];
+  for (const raw of text.split(/\n|,|;/)) {
+    const m = /(\+?\d[\d\s()-]{8,}\d)/.exec(raw);
+    if (!m) continue;
+    const to = m[1].replace(/[^\d+]/g, "");
+    const name = raw.replace(m[1], "").replace(/[—:-]/g, " ").trim();
+    out.push({ to, name });
+  }
+  return out;
+}
+function renderQueue(el, entries){
+  const st = { queued:"в очереди", active:"звоним", done:"готово", failed:"не вышло" };
+  el.innerHTML = entries.map((e, i) => `<div class="qrow" data-st="${e.status ?? "queued"}"${e.callId ? ` data-id="${e.callId}"` : ""} title="${e.result ?? ""}">
+    <span class="n">${i + 1}</span><span class="num">${e.to}</span><span class="name">${e.name || "—"}</span>
+    <span class="st">${st[e.status ?? "queued"]}</span><span class="res">${e.result ?? ""}</span></div>`).join("");
+  el.querySelectorAll(".qrow[data-id]").forEach(r => r.addEventListener("click", () => showCall(r.dataset.id)));
+}
+ui.numbers.addEventListener("input", () => { if (campaign) return; const entries = parseNumbers(ui.numbers.value); renderQueue(ui.queueLive, entries); ui.queueSection.hidden = entries.length === 0; });
+
+/* ── Общие помощники ────────────────────────────────────────── */
+function phase(p){ body.dataset.phase = p; }
+function fail(text){ ui.notice.textContent = text; }
+function mmss(ms){ const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; }
+function log(type, detail){
+  const line = document.createElement("div");
+  line.innerHTML = `<b>${type}</b> ${detail ? String(detail).slice(0, 160) : ""}`;
+  ui.log.prepend(line);
+  while (ui.log.childElementCount > 200) ui.log.lastElementChild.remove();
+}
+const whoLabel = (channel) => channel === "you" ? (mode === "phone" ? (phone?.name || "Клиент") : "Вы") : "Агент";
+const currentProfile = () => config?.profiles.find(p => p.id === (uiMode === "free" ? "free" : ui.base.value));
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+/* ── Расшифровка ────────────────────────────────────────────── */
+const GAP_MS = 1400;
+const lastTurn = {};
+function resetThread(text = "Набираем номер…"){
+  turns.length = 0; for (const k of Object.keys(lastTurn)) delete lastTurn[k];
+  tasks.clear(); ui.tasks.innerHTML = `<p class="none">Агент пока справляется сам.</p>`;
+  ui.thread.innerHTML = `<div class="empty"><b>${text}</b></div>`;
+}
+function transcript(channel, delta, startMs, endMs){
+  ui.thread.querySelector(".empty")?.remove();
+  const last = lastTurn[channel];
+  turns.forEach(t => t.node.classList.remove("open"));   // каретка — только у самой свежей реплики
+  if (last && startMs - last.endMs < GAP_MS) {
+    last.text += delta; last.endMs = endMs;
+    last.said.textContent = last.text.replace(/\s+/g, " ").trim();
+    last.node.classList.add("open");
+  } else {
+    const node = document.createElement("article");
+    node.className = `turn ${channel} open`;
+    node.innerHTML = `<span class="at">${mmss(startMs)}</span><div><div class="who">${whoLabel(channel)}</div><p class="said"></p></div>`;
+    const said = node.querySelector(".said");
+    said.textContent = delta.replace(/\s+/g, " ").trim();
+    ui.thread.append(node);
+    const turn = { channel, text:delta, startMs, endMs, node, said };
+    turns.push(turn); lastTurn[channel] = turn;
+  }
+  const box = ui.thread.parentElement;   // расшифровка прокручивается внутри сцены
+  if (box.scrollHeight - box.scrollTop - box.clientHeight < 240) box.scrollTop = box.scrollHeight;
+  ui.dockState.textContent = channel === "you" ? (mode === "phone" ? "Клиент говорит" : "Слушаю вас") : "Агент отвечает";
+}
+
+/* ── Фоновая работа ─────────────────────────────────────────── */
+function taskFor(id){
+  const key = id ?? "main";
+  if (tasks.has(key)) return tasks.get(key);
+  ui.tasks.querySelector(".none")?.remove();
+  const node = document.createElement("div");
+  node.className = "task";
+  node.innerHTML = `<div class="head"><span class="st"></span><span class="label">Уточняет у бэкенда</span><span class="ms">0,0 с</span></div><ul class="steps"></ul>`;
+  ui.tasks.prepend(node);
+  const task = { node, t0:performance.now(), steps:node.querySelector(".steps"), seen:new Set(), say:null, done:false };
+  tasks.set(key, task);
+  return task;
+}
+function step(task, text){ if (!text || task.seen.has(text)) return; task.seen.add(text); const li = document.createElement("li"); li.textContent = text; task.steps.append(li); }
+function finish(task){ if (task.done) return; task.done = true; task.node.classList.add("done"); task.node.querySelector(".label").textContent = "Бэкенд ответил"; }
+function backendEvent(task, inner){
+  const t = inner?.type ?? "";
+  if (t === "response.created") step(task, "Задача принята");
+  else if (t.includes("web_search")) { const q = inner.item?.action?.query ?? inner.action?.query ?? inner.query; step(task, q ? `Ищет: ${q}` : "Ищет в интернете"); }
+  else if (t === "response.output_item.done" && inner.item?.type === "function_call") step(task, `Инструмент: ${inner.item.name}`);
+  else if (t === "response.output_text.delta") {
+    if (!task.say) { task.say = document.createElement("p"); task.say.className = "say"; task.node.append(task.say); }
+    task.say.textContent = (task.say.textContent + inner.delta).slice(-320);
+  }
+  else if (t === "response.completed" || t === "response.done") finish(task);
+  else if (t.endsWith("failed") || t === "error") { step(task, "Бэкенд вернул ошибку"); finish(task); }
+}
+
+/* ── Факты ──────────────────────────────────────────────────── */
+function facts(){
+  const live = startedAt ? (Date.now() - startedAt) / 1000 : 0;
+  const secs = Math.max(usageSeconds, live), cost = (secs / 60) * 0.05;
+  const who = meta?.label ?? currentProfile()?.label ?? (uiMode === "free" ? "Свободный разговор" : "Свой промпт");
+  ui.facts.innerHTML = `
+    <div><dt>Профиль</dt><dd>${who}</dd></div>
+    <div><dt>Голос</dt><dd>${meta?.voice ?? ui.voice.value}</dd></div>
+    <div><dt>Файлов</dt><dd>${attached.length ? `${attached.length}, ${(attached.reduce((a, f) => a + f.chars, 0) / 1000).toFixed(1)}k символов` : "нет"}</dd></div>
+    <div><dt>Бэкенд</dt><dd>${meta?.backendModel ?? config?.backendModel ?? "—"}</dd></div>
+    <div><dt>На линии</dt><dd class="num">${mmss(secs * 1000)}</dd></div>
+    <div><dt>Голос, ≈</dt><dd class="num">$${cost.toFixed(3)}</dd></div>
+    <div><dt>Сессия</dt><dd class="num">${session?.id ?? "—"}</dd></div>`;
+}
+
+/* ── Дуплекс-полоса ─────────────────────────────────────────── */
+const meter = $("meter"), mctx = meter.getContext("2d");
+const COL = 3, STEP_MS = 40, PAD = 66;
+let cols = [], lastSample = 0;
+function sizeMeter(){ const dpr = window.devicePixelRatio || 1; meter.width = meter.clientWidth * dpr; meter.height = meter.clientHeight * dpr; mctx.setTransform(dpr, 0, 0, dpr, 0, 0); }
+addEventListener("resize", sizeMeter);
+function drawMeter(now){
+  requestAnimationFrame(drawMeter);
+  const w = meter.clientWidth, h = meter.clientHeight, axis = Math.round(h / 2), plot = w - PAD;
+  if (now - lastSample >= STEP_MS) {
+    lastSample = now; cols.push({ y: level.you, a: level.agent });
+    while (cols.length > Math.ceil(plot / COL)) cols.shift();
+    level.you *= 0.72; level.agent *= 0.72;
+  }
+  mctx.clearRect(0, 0, w, h); mctx.lineWidth = 1;
+  mctx.strokeStyle = "#DEE0E2"; mctx.beginPath(); mctx.moveTo(PAD - 10.5, 12); mctx.lineTo(PAD - 10.5, h - 12); mctx.stroke();
+  mctx.strokeStyle = "#D0D3D5"; mctx.beginPath(); mctx.moveTo(PAD, axis + .5); mctx.lineTo(w, axis + .5); mctx.stroke();
+  let second = Math.floor(cols.length * STEP_MS / 1000);
+  for (let x = w - 75; x > PAD; x -= 75, second--) { const tall = second % 5 === 0 ? 7 : 3; mctx.beginPath(); mctx.moveTo(x + .5, axis - tall); mctx.lineTo(x + .5, axis + tall); mctx.stroke(); }
+  const span = axis - 12;
+  cols.forEach((c, i) => {
+    const x = w - (cols.length - i) * COL;
+    if (c.y > .05 && c.a > .05) { mctx.fillStyle = "rgba(42,45,48,.08)"; mctx.fillRect(x, 8, COL - 1, h - 16); }
+    if (c.y > .03) { mctx.fillStyle = "#2A2D30"; mctx.fillRect(x, axis - c.y * span, COL - 1, c.y * span); }
+    if (c.a > .03) { mctx.fillStyle = "#9EDC1C"; mctx.fillRect(x, axis + 1, COL - 1, c.a * span); }
+  });
+}
+sizeMeter(); requestAnimationFrame(drawMeter);
+function watchLevel(stream, key){
+  try {
+    audioCtx ??= new (window.AudioContext || window.webkitAudioContext)();
+    const analyser = audioCtx.createAnalyser(); analyser.fftSize = 512;
+    audioCtx.createMediaStreamSource(stream).connect(analyser);
+    const buf = new Uint8Array(analyser.frequencyBinCount);
+    (function read(){
+      if (!pc) return;
+      requestAnimationFrame(read); analyser.getByteTimeDomainData(buf);
+      let peak = 0; for (const v of buf) peak = Math.max(peak, Math.abs(v - 128) / 128);
+      level[key] = Math.max(level[key], Math.min(1, peak * 2.4));
+    })();
+  } catch { log("meter", `нет анализатора для «${key}»`); }
+}
+
+/* ── Прослушивание телефонного звонка: клиент слева, агент справа ── */
+const ALAW = Float32Array.from({ length: 256 }, (_, i) => {
+  const a = i ^ 0x55; let t = (a & 0x0f) << 4; const seg = (a & 0x70) >> 4;
+  if (seg === 0) t += 8; else if (seg === 1) t += 0x108; else t = (t + 0x108) << (seg - 1);
+  return ((a & 0x80) ? t : -t) / 32768;
+});
+let monitor = null;
+function openMonitor(id){
+  closeMonitor();
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const pans = [-0.7, 0.7].map(pan => { const n = new StereoPannerNode(ctx, { pan }); n.connect(ctx.destination); return n; });
+  const next = [0, 0];
+  const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/calls/${id}/audio`);
+  ws.binaryType = "arraybuffer";
+  ws.onmessage = ({ data }) => {
+    const bytes = new Uint8Array(data), dir = bytes[0], n = bytes.length - 1;
+    if (!monitor?.on || n <= 0 || dir > 1) return;
+    if (next[dir] - ctx.currentTime > 0.6) return;
+    const buf = ctx.createBuffer(1, n, 8000), ch = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) ch[i] = ALAW[bytes[i + 1]];
+    const src = ctx.createBufferSource(); src.buffer = buf; src.connect(pans[dir]);
+    const at = Math.max(ctx.currentTime + 0.08, next[dir]); src.start(at); next[dir] = at + buf.duration;
+  };
+  monitor = { ctx, ws, on: true };
+  ui.monitor.hidden = false; ui.monitor.setAttribute("aria-pressed", "true"); ui.monitor.textContent = "Слышно";
+}
+function closeMonitor(){ try { monitor?.ws.close(); monitor?.ctx.close(); } catch {} monitor = null; ui.monitor.hidden = true; }
+ui.monitor.addEventListener("click", () => {
+  if (!monitor) return;
+  monitor.on = !monitor.on; ui.monitor.setAttribute("aria-pressed", String(monitor.on));
+  ui.monitor.textContent = monitor.on ? "Слышно" : "Без звука"; monitor.on ? monitor.ctx.resume() : monitor.ctx.suspend();
+});
+
+/* ── Телефония: очередь звонков ─────────────────────────────── */
+ui.dial.addEventListener("click", async () => {
+  const entries = parseNumbers(ui.numbers.value);
+  if (!entries.length) { fail("Добавьте хотя бы один номер: «+7 900 000-00-00 Иван»."); return; }
+  if (!ui.prompt.value.trim() && !ui.base.value) { fail("Напишите промпт или выберите основу — агенту нужно знать, зачем он звонит."); return; }
+  ui.dial.disabled = true; fail(""); finalized = false; callReason = ""; mode = "phone";
+  const res = await fetch("/api/campaigns", { method:"POST", headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ entries, ...brief(), record: false }) });
+  const payload = await res.json().catch(() => ({ error:"Сервер ответил не по-человечески" }));
+  if (!res.ok) { fail(payload.error ?? "Не удалось начать"); ui.dial.disabled = false; return; }
+  campaign = { id: payload.id, entries: payload.entries, watching: null };
+  ui.queueSection.hidden = false; ui.stopQueue.hidden = false; ui.wrapTitle.textContent = "Очередь завершена";
+  renderQueue(ui.queueLive, campaign.entries);
+  phase("live"); ui.lamp.textContent = "Набираем…"; ui.dockState.textContent = "Набираем…"; resetThread();
+  pollCampaign();
+});
+async function pollCampaign(){
+  while (campaign) {
+    let c; try { c = await fetch(`/api/campaigns/${campaign.id}`).then(r => r.json()); } catch { await sleep(2000); continue; }
+    campaign.entries = c.entries; renderQueue(ui.queueLive, c.entries);
+    const active = c.entries.find(e => e.status === "active");
+    if (active && campaign.watching !== active.callId) { campaign.watching = active.callId; watchCall(active); }
+    if (c.done) { finishCampaign(c); return; }
+    await sleep(1500);
+  }
+}
+function watchCall(entry){
+  finalized = false; startedAt = 0; usageSeconds = 0; session = null; resetThread();
+  phone = { id: entry.callId, name: entry.name }; ui.timer.hidden = true;
+  document.querySelector(".tag.you").textContent = entry.name || "Клиент";
+  ui.lamp.textContent = `Звоним: ${entry.name || entry.to}`;
+  openMonitor(entry.callId);
+  const feed = new EventSource(`/api/calls/${entry.callId}/events`);
+  feed.onmessage = (m) => handlePhone(JSON.parse(m.data), true);
+  feed.onerror = () => feed.close();
+}
+function finishCampaign(c){
+  clearInterval(tickTimer); closeMonitor(); ui.stopQueue.hidden = true; ui.timer.hidden = true;
+  const done = c.entries.filter(e => e.status === "done"), talk = c.entries.reduce((a, e) => a + (e.talk ?? 0), 0);
+  ui.summary.innerHTML = `
+    <div><dt>Номеров</dt><dd class="num">${c.entries.length}</dd></div>
+    <div><dt>Дозвонились</dt><dd class="num">${done.length}</dd></div>
+    <div><dt>Разговоров</dt><dd class="num">${mmss(talk * 1000)}</dd></div>
+    <div><dt>Голос, ≈</dt><dd class="num">$${((talk / 60) * 0.05).toFixed(3)}</dd></div>`;
+  campaign = null; phase("ended"); ui.lamp.textContent = "Очередь завершена"; ui.dial.disabled = false;
+  $("wrapup").scrollIntoView({ behavior:"smooth", block:"start" });
+}
+ui.stopQueue.addEventListener("click", () => { if (campaign) fetch(`/api/campaigns/${campaign.id}`, { method:"DELETE" }); ui.stopQueue.disabled = true; ui.stopQueue.textContent = "Останавливаю…"; });
+// Открыть расшифровку завершённого звонка из очереди
+function showCall(id){
+  if (campaign?.watching === id) return;
+  resetThread("Расшифровка звонка"); ui.thread.querySelector(".empty")?.remove();
+  const feed = new EventSource(`/api/calls/${id}/events`);
+  feed.onmessage = (m) => { const e = JSON.parse(m.data); if (e.type.endsWith("_transcript.delta")) transcript(e.type.includes("input") ? "you" : "agent", e.delta, e.start_ms, e.end_ms); };
+  feed.onerror = () => feed.close();
+}
+function handlePhone(e, inCampaign = false){
+  if (e.type === "call.state") {
+    const text = { dialing:"Набираем…", ringing:"Идут гудки…", answered:"Разговор", ended:"Звонок завершён" }[e.state] ?? e.state;
+    ui.lamp.textContent = text; ui.dockState.textContent = text;
+    if (e.state === "ended") callReason = e.reason ?? "";
+    log("call." + e.state, e.reason ?? e.to ?? ""); return;
+  }
+  if (e.type === "meter") { level.you = Math.max(level.you, e.you); level.agent = Math.max(level.agent, e.agent); return; }
+  if (inCampaign && e.type === "session.closed") { turns[turns.length - 1]?.node.classList.remove("open"); clearInterval(tickTimer); log("session.closed", e.reason); return; }
+  handle(e);
+}
+
+/* ── Демо-разговор: ?demo=1 ─────────────────────────────────── */
+if (DEMO) ui.call.lastChild.textContent = "Показать демо-разговор";
+async function demo(){
+  ui.call.disabled = true; phase("connecting"); ui.lamp.textContent = "Соединяем…"; resetThread("Микрофон открыт.");
+  const say = async (channel, text, at) => {
+    let ms = at;
+    for (const word of text.split(" ")) {
+      if (finalized) return ms;
+      level[channel] = 0.32 + Math.random() * 0.55;
+      handle({ type:`session.${channel === "you" ? "input" : "output"}_transcript.delta`, delta:word + " ", start_ms:ms, end_ms:ms + 250, event_id:"demo" });
+      ms += 250; await sleep(140);
+    }
+    return ms + 300;
+  };
+  const backend = (event) => handle({ type:"response.event", delegation_id:"d1", event, event_id:"demo" });
+  await sleep(800);
+  handle({ type:"session.started", event_id:"demo", session:{ id:"live_demo_0000", model:"gpt-live-1", status:"active", expires_at:0 } });
+  ui.lamp.textContent = "Демо-разговор";
+  let t = 900;
+  t = await say("you", "Здравствуйте, у меня не проходит оплата картой, пишет какую-то ошибку.", t);
+  t = await say("agent", "Понял. Секунду, проверю, что сейчас со шлюзом.", t);
+  handle({ type:"session.delegation.created", event_id:"demo", offset_ms:t, delegation:{ id:"d1", target:"responses", type:"delegation" } });
+  backend({ type:"response.created" }); await sleep(600);
+  backend({ type:"response.web_search_call.searching", action:{ query:"сбой 3-D Secure оплата сегодня" } });
+  t = await say("you", "Карта рабочая, я ей только что платил в другом месте.", t);
+  await sleep(500);
+  backend({ type:"response.output_text.delta", delta:"Провайдер отклоняет 3-D Secure у части банков с 14:20." });
+  backend({ type:"response.completed" });
+  t = await say("agent", "Дело не в карте: у платёжного провайдера с двадцати минут третьего сбой в подтверждении по три-дэ секьюр. Выставлю вам счёт — он проходит мимо шлюза.", t);
+  handle({ type:"session.usage.updated", event_id:"demo", usage:{ seconds: Math.round((Date.now() - startedAt) / 1000) } });
+  t = await say("you", "Да, давайте счёт.", t);
+  await say("agent", "Отправил на вашу почту, оплата по нему пройдёт сразу.", t);
+}
+
+/* ── Разговор в браузере (WebRTC) ───────────────────────────── */
+ui.call.addEventListener("click", async () => {
+  if (DEMO) return demo();
+  if (uiMode === "prompt" && !ui.prompt.value.trim() && !ui.base.value) { fail("Напишите промпт или выберите основу."); return; }
+  ui.call.disabled = true; fail(""); finalized = false; mode = "web";
+  phase("connecting"); ui.lamp.textContent = "Соединяем…"; resetThread("Микрофон открыт.");
+  try {
+    pc = new RTCPeerConnection();
+    pc.addEventListener("track", (e) => {
+      const stream = new MediaStream([e.track]);
+      ui.out.srcObject = stream; ui.out.play().catch(() => fail("Нажмите на плеер, чтобы услышать агента."));
+      watchLevel(stream, "agent");
+    });
+    ui.lamp.textContent = "Ждём микрофон…";
+    const micHint = setTimeout(() => fail("Браузер всё ещё ждёт разрешение на микрофон. Разрешите доступ в адресной строке — или перезагрузите страницу, если запрос не появился."), 8000);
+    mic = await navigator.mediaDevices.getUserMedia({ audio:true });
+    clearTimeout(micHint); fail(""); ui.lamp.textContent = "Соединяем…";
+    for (const track of mic.getAudioTracks()) pc.addTrack(track, mic);
+    watchLevel(mic, "you");
+    events = pc.createDataChannel("oai-events");   // до оффера
+    events.addEventListener("message", ({ data }) => handle(JSON.parse(data)));
+    events.addEventListener("close", () => { if (!finalized) { fail("Связь оборвалась."); teardown(); phase("ended"); } });
+    await pc.setLocalDescription(await pc.createOffer());
+    if (pc.iceGatheringState !== "complete") {
+      await new Promise((ok, no) => {
+        const t = setTimeout(() => no(new Error("Не удалось собрать ICE-кандидатов")), 10000);
+        const on = () => { if (pc.iceGatheringState !== "complete") return; clearTimeout(t); pc.removeEventListener("icegatheringstatechange", on); ok(); };
+        pc.addEventListener("icegatheringstatechange", on); on();
+      });
+    }
+    const res = await fetch("/api/session", { method:"POST", headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ sdp: pc.localDescription.sdp, ...brief() }) });
+    const payload = await res.json().catch(() => ({ error:"Сервер ответил не по-человечески" }));
+    if (!res.ok) throw new Error(payload.error ?? "Сервер отказал");
+    meta = payload.meta;
+    await pc.setRemoteDescription({ type:"answer", sdp: payload.transport.sdp });
+  } catch (error) {
+    fail(error?.name === "NotAllowedError" ? "Микрофон недоступен. Разрешите доступ к нему в браузере и попробуйте снова." : (error.message ?? String(error)));
+    teardown(); phase("idle"); ui.lamp.textContent = "Линия свободна"; ui.call.disabled = false;
+  }
+});
+
+/* ── События сессии (общие для браузера и телефона) ─────────── */
+function handle(e){
+  switch (e.type) {
+    case "session.started":
+      session = e.session; startedAt = Date.now(); if (!campaign) phase("live");
+      ui.lamp.textContent = campaign ? `Разговор: ${phone?.name || phone?.id}` : "На линии"; ui.timer.hidden = false;
+      clearInterval(tickTimer); let shownSecond = -1;
+      tickTimer = setInterval(() => {
+        ui.timer.textContent = mmss(Date.now() - startedAt);
+        const sec = Math.floor((Date.now() - startedAt) / 1000);
+        if (sec !== shownSecond) { shownSecond = sec; facts(); }
+        for (const t of tasks.values()) if (!t.done) t.node.querySelector(".ms").textContent = `${((performance.now() - t.t0) / 1000).toFixed(1).replace(".", ",")} с`;
+      }, 200);
+      facts(); log("session.started", session.id); break;
+    case "session.input_transcript.delta": transcript("you", e.delta, e.start_ms, e.end_ms); break;
+    case "session.output_transcript.delta": transcript("agent", e.delta, e.start_ms, e.end_ms); break;
+    case "session.delegation.created": taskFor(e.delegation.id); log("delegation", e.delegation.target); break;
+    case "response.event": backendEvent(taskFor(e.delegation_id), e.event); break;
+    case "session.usage.updated": usageSeconds = e.usage.seconds; facts(); break;
+    case "session.input_audio.muted":
+      muted = true; ui.mic.setAttribute("aria-pressed", "true");
+      ui.mic.textContent = mode === "phone" ? "Слышать клиента" : "Включить микрофон"; ui.dockState.textContent = mode === "phone" ? "Клиент заглушён" : "Микрофон выключен"; break;
+    case "session.input_audio.unmuted":
+      muted = false; ui.mic.setAttribute("aria-pressed", "false");
+      ui.mic.textContent = mode === "phone" ? "Заглушить клиента" : "Выключить микрофон"; ui.dockState.textContent = mode === "phone" ? "Разговор" : "Слушаю"; break;
+    case "session.closed": closed(e); break;
+    case "error": fail(`${e.error.code}: ${e.error.message}`); log("error", e.error.message); break;
+    case "info": log("info", `${e.code} ${e.message}`); break;
+    default: log(e.type, "");
+  }
+}
+function closed(e){
+  finalized = true; usageSeconds = e.usage?.seconds ?? usageSeconds;
+  const reasons = { close_requested:"вы завершили разговор", expired:"сессия истекла", content:"остановлено правилами контента", remote_hangup:"линия закрыта на стороне API", connection_lost:"связь потеряна" };
+  ui.summary.innerHTML = `
+    <div><dt>Длительность</dt><dd class="num">${mmss(usageSeconds * 1000)}</dd></div>
+    <div><dt>Голос, ≈</dt><dd class="num">$${((usageSeconds / 60) * 0.05).toFixed(3)}</dd></div>
+    <div><dt>Реплик</dt><dd class="num">${turns.length}</dd></div>
+    <div><dt>Задач бэкенду</dt><dd class="num">${tasks.size}</dd></div>
+    <div><dt>Причина</dt><dd>${reasons[e.reason] ?? callReason ?? e.reason}</dd></div>`;
+  turns[turns.length - 1]?.node.classList.remove("open");
+  if (mode === "web" && !DEMO && session?.id) fetch("/api/session/report", { method:"POST", headers:{ "Content-Type":"application/json" }, keepalive:true,
+    body: JSON.stringify({ id: session.id, profile: currentProfile()?.id ?? "custom", label: meta?.label, voice: meta?.voice ?? ui.voice.value, startedAt, usage: e.usage, reason: e.reason, tasks: tasks.size,
+      turns: turns.map(t => ({ channel: t.channel, text: t.text, startMs: t.startMs, endMs: t.endMs })) }) }).catch(() => {});
+  facts(); teardown(); phase("ended"); ui.lamp.textContent = "Разговор завершён"; log("session.closed", e.reason);
+  $("wrapup").scrollIntoView({ behavior:"smooth", block:"start" });
+}
+function teardown(){
+  clearTimeout(closeTimer); clearInterval(tickTimer); closeMonitor();
+  mic?.getTracks().forEach(t => t.stop());
+  try { events?.close(); } catch {} try { pc?.close(); } catch {}
+  pc = null; ui.out.srcObject = null; level.you = level.agent = 0;
+}
+
+/* ── Управление ─────────────────────────────────────────────── */
+ui.mic.addEventListener("click", () => {
+  if (DEMO) return handle({ type: muted ? "session.input_audio.unmuted" : "session.input_audio.muted" });
+  if (mode === "phone") return phone && fetch(`/api/calls/${phone.id}/mute`, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ muted: !muted }) });
+  if (events?.readyState !== "open") return;
+  events.send(JSON.stringify({ type: muted ? "session.input_audio.unmute" : "session.input_audio.mute" }));
+});
+ui.hang.addEventListener("click", () => {
+  if (DEMO) return closed({ type:"session.closed", reason:"close_requested", session, usage:{ seconds: Math.round((Date.now() - startedAt) / 1000) } });
+  if (mode === "phone") { ui.dockState.textContent = "Кладём трубку…"; return phone && fetch(`/api/calls/${phone.id}`, { method:"DELETE" }); }
+  if (events?.readyState !== "open") return;
+  ui.hang.disabled = true; ui.dockState.textContent = "Завершаем…";
+  events.send(JSON.stringify({ type:"session.close" }));
+  closeTimer = setTimeout(() => { fail("Итог сессии не пришёл — закрыли соединение сами."); teardown(); phase("ended"); }, 15000);
+});
+$("again").addEventListener("click", () => location.reload());
+addEventListener("beforeunload", () => {
+  if (events?.readyState === "open") events.send(JSON.stringify({ type:"session.close" }));
+  if (campaign) fetch(`/api/campaigns/${campaign.id}`, { method:"DELETE", keepalive:true });
+  else if (mode === "phone" && phone && !finalized) fetch(`/api/calls/${phone.id}`, { method:"DELETE", keepalive:true });
+});
+</script>
+</body>
+</html>

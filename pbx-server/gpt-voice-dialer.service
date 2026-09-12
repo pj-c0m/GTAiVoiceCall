@@ -1,0 +1,24 @@
+[Unit]
+Description=gpt-voice dialer (Asterisk ARI/RTP ↔ brain WebSocket)
+After=network.target asterisk.service
+Wants=asterisk.service
+
+[Service]
+Type=simple
+User=gptvoice
+Group=gptvoice
+EnvironmentFile=/etc/gpt-voice/dialer.env
+WorkingDirectory=/srv/gpt-voice-dialer
+ExecStart=/srv/gpt-voice-dialer/.venv/bin/python /srv/gpt-voice-dialer/dialer.py
+Restart=always
+RestartSec=3
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadOnlyPaths=/srv/gpt-voice-dialer
+LogsDirectory=gpt-voice
+LogsDirectoryMode=0750
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,28 @@
+{
+  "name": "gpt_voice_pbx",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Голосовые консультанты на OpenAI GPT-Live: в браузере (WebRTC) и по телефону через собственную SIP-АТС (Asterisk-мост в контуре РФ + сервер модели вне контура)",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node --watch server.mjs",
+    "check": "node smoke-test.mjs",
+    "calls": "node scripts/calls.mjs"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "openai": "^7.15.0",
+    "ws": "^8.21.3",
+    "pdf-parse": "^2.4.5",
+    "mammoth": "^1.12.3"
+  },
+  "devDependencies": {
+    "werift": "^0.24.4"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kpshinnik/gpt_voice_pbx.git"
+  }
+}

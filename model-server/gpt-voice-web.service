@@ -1,0 +1,22 @@
+[Unit]
+Description=gpt-voice web + brain (GPT-Live consultants, phone bridge client)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gptvoice
+Group=gptvoice
+WorkingDirectory=/srv/gpt-voice
+Environment=HOST=127.0.0.1
+ExecStart=/usr/bin/node server.mjs
+Restart=always
+RestartSec=3
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/srv/gpt-voice/logs
+
+[Install]
+WantedBy=multi-user.target
