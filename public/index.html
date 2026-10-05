@@ -325,6 +325,7 @@ const ui = {
   brief:$("brief"), phonePane:$("phonePane"),
 };
 
+let browserLampText = "Линия свободна";
 let uiMode = "free";                 // free | prompt | phone — выбранная «линия»
 let mode = "web", phone = null, callReason = "";
 let session = null, meta = null, startedAt = 0, usageSeconds = 0, muted = false, finalized = false;
@@ -366,6 +367,9 @@ ui.base.addEventListener("change", loadBase);
 /* ── Режимы ─────────────────────────────────────────────────── */
 function setMode(m){
   if (!["free","prompt","phone"].includes(m)) m="free";
+  if (m === "phone" && uiMode !== "phone") browserLampText = ui.lamp.textContent;
+  if (m === "phone") ui.lamp.textContent = "Управление звонками";
+  else if (uiMode === "phone") ui.lamp.textContent = browserLampText;
   body.dataset.mode = m; $("phone-control").hidden = m !== "phone";
   uiMode = m;
   document.querySelectorAll(".modes button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.mode === m)));
