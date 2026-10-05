@@ -37,6 +37,8 @@ if (mode === 'model') {
   if(e.OPENAI_PROJECT_ID) e.OPENAI_PROJECT=e.OPENAI_PROJECT_ID;
     keys.push('OPENAI_PROJECT','OPENAI_ORG_ID');
   write('.env', keys.filter(k=>e[k]).map(k=>`${k}=${JSON.stringify(e[k])}`).join('\n')+'\n');
+  mkdirSync(resolve(output,'scripts'), {recursive:true});
+  for (const name of ['scripts/calls.mjs','scripts/live-smoke.mjs']) cpSync(name,resolve(output,name));
   for (const name of ['server.mjs','package.json','package-lock.json','lib','public','profiles','model-server']) cpSync(name,resolve(output,name),{recursive:true});
 } else {
   const dns = spawnSync('dig',['+short',e.BRIDGE_DOMAIN,'A'],{encoding:'utf8'});

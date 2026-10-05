@@ -1,5 +1,5 @@
 {
-  "name": "gpt_voice_pbx",
+  "name": "gtaivoicecall",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -23,6 +23,6 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kpshinnik/gpt_voice_pbx.git"
+    "url": "https://github.com/pj-c0m/GTAiVoiceCall.git"
   }
 }

@@ -59,8 +59,12 @@ ssh -i /absolute/path/ssh-key -L 3000:127.0.0.1:3000 root@147.45.132.111
 
 При rollback остановить `gpt-voice-web` или `gpt-voice-dialer`/`asterisk`, извлечь нужные scoped файлы из выбранного архива, выполнить `systemctl daemon-reload`, проверить nginx и запустить предыдущую версию. Не извлекать весь `/etc` поверх текущей системы и не удалять общие пакеты. Для первого развёртывания предыдущих project-сервисов не было: можно отключить только project units и scoped nginx vhost, сохранив SSH/Zabbix. Снятие UFW после первого deployment допустимо только при восстановлении точно исходного network policy; не отключать его автоматически при обычном code rollback.
 
-## Текущая незавершённость
+## Подтверждённый результат и ограничения
 
-MVP1 **не принят**. Configured OpenAI key возвращает `model_not_found` для `gpt-live-1` и в WebRTC, и в WebSocket. Ранний WebRTC PASS использовал иной унаследованный key и исключён из acceptance. Нужен доступ к модели у настроенного OpenAI project либо замена key владельцем в закрытом config. Backend из user config — `gpt-6-luna`; voice model не заменялся.
+MVP1 **принят 2026-10-05**. После предоставления доступа к модели успешно выполнены WebRTC smoke с явным configured key, прямой PCMA WebSocket smoke на NL и полный `test:sim1`. Затем выполнен один согласованный PSTN-звонок. Владелец подтвердил двустороннюю слышимость, перебивание, паузу и завершение; transcript обеих сторон, Live usage и cleanup подтверждены логами. Allowlist снова `none`.
 
-Self-test после исправления cleanup дошёл до RTP/Live start request, завершился на отказе API; transcript/Live usage отсутствуют. Единственный реальный звонок не выполнялся. UI branding отложен. Offline regression проходит; реальный duplex/interruption и успешное завершение Live пока не проверены. Evidence: `docs/evidence/mvp1-20261005.md`.
+Первоначальный отказ `model_not_found` сохранён как диагностическая история. Доступ к WebSocket применился позже WebRTC/model lookup; гипотеза — задержка распространения доступа, точная внутренняя причина OpenAI неизвестна. Ранний smoke с иным inherited key не засчитывался. Voice model сохранился `gpt-live-1`, backend user config — `gpt-6-luna`.
+
+Новая независимая проверка: `node scripts/live-smoke.mjs /absolute/path/config.env` (на model server можно без аргумента). Она явно читает key из выбранного dotenv, создаёт PCMA Live-сессию и проверяет started/closed. Нельзя source-ить общий config или выводить его. Последующий deployment всё равно сначала закрывает PSTN.
+
+Проверены только один owner number, один voice и текущая инфраструктура. Массовый обзвон, другие операторы, восстановление backup в аварийном режиме, нагрузка и долгие звонки не проверялись. Поле `usage_seconds=null` означает неизвестное значение. Evidence: `docs/evidence/mvp1-20261005.md`.

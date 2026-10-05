@@ -25,6 +25,8 @@ test('Secrets разделены, PSTN закрыт, Mango subnet и port60000 �
     assert.equal(projected.OPENAI_API_KEY,'fixture-openai-secret');
     assert.equal(projected.PBX_SIP_PASSWORD,undefined);
     assert.equal(projected.ALLOWED_NUMBERS,undefined);
+    assert.match(readFileSync(join(output,'scripts/live-smoke.mjs'),'utf8'),/parseEnv/);
+    assert.match(readFileSync(join(output,'scripts/calls.mjs'),'utf8'),/calls/);
    } else {
     const projected=parseEnv(readFileSync(join(output,'dialer.env'),'utf8'));
     assert.equal(projected.ALLOWED_NUMBERS,'none');
