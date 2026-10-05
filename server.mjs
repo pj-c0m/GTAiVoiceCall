@@ -9,7 +9,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
-import { defaultProfile, loadProfiles, sessionFor, VOICES } from "./lib/profiles.mjs";
+import { defaultProfile, loadProfiles, sessionFor, jobSessionFor, VOICES } from "./lib/profiles.mjs";
 import { openJobStore } from "./lib/job-store.mjs";
 import { Scheduler } from "./lib/scheduler.mjs";
 import { mountJobsApi } from "./lib/jobs-api.mjs";
@@ -89,9 +89,7 @@ try {
 mountJobsApi(app, {store: jobStore, scheduler, allowedOrigins, buildBrief: async input => {
   if (input.voice && !VOICES.has(input.voice)) throw Object.assign(new Error("Неизвестный голос"), {status:400});
   let brief; try { brief = await briefFrom(input); } catch (e) { e.status = 400; throw e; }
-  const extra = [input.topic && `Тема разговора: ${input.topic}`, input.goal && `Цель разговора: ${input.goal}`, input.context].filter(Boolean).join("\n\n");
-  const session = sessionFor(brief.profile, {...brief, context: extra, backendModel: BACKEND_MODEL, phone:true, name:input.name});
-  if (extra) session.instructions += `\n\n# Задание оператора\n${extra}`;
+  const session = jobSessionFor(brief.profile, input, {backendModel: BACKEND_MODEL});
   return {profile:brief.profile, session};
 }});
 app.use(["/api/calls", "/api/campaigns"], (req, res, next) => {
