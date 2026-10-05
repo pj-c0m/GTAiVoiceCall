@@ -88,7 +88,7 @@ try {
 } catch (error) { jobStore?.close(); jobStore = null; console.error("Scheduler недоступен:", error.message); }
 mountJobsApi(app, {store: jobStore, scheduler, allowedOrigins, buildBrief: async input => {
   if (input.voice && !VOICES.has(input.voice)) throw Object.assign(new Error("Неизвестный голос"), {status:400});
-  const brief = await briefFrom(input);
+  let brief; try { brief = await briefFrom(input); } catch (e) { e.status = 400; throw e; }
   const extra = [input.topic && `Тема разговора: ${input.topic}`, input.goal && `Цель разговора: ${input.goal}`, input.context].filter(Boolean).join("\n\n");
   const session = sessionFor(brief.profile, {...brief, context: extra, backendModel: BACKEND_MODEL, phone:true, name:input.name});
   if (extra) session.instructions += `\n\n# Задание оператора\n${extra}`;

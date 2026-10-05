@@ -10,3 +10,7 @@ test('duration defaults and bounds',()=>{
  assert.throws(()=>validateJobInput({to:'123',when:'now'},now));
  assert.throws(()=>validateJobInput({to:'test:sim1',when:'scheduled',localTime:'2026-10-04T12:00',timeZone:'Europe/Moscow'},now));
 });
+test('invalid types and file budgets reject explicitly',()=>{
+ for(const body of [{to:5},{to:'test:sim1',name:{}},{to:'test:sim1',when:'other'},{to:'test:sim1',files:{}},{to:'test:sim1',files:Array.from({length:51},()=>({name:'x',text:'a'}))},{to:'test:sim1',files:[{name:'x',text:'a'.repeat(120001)}]}])assert.throws(()=>validateJobInput(body,now));
+ assert.throws(()=>resolveTime({localTime:'2026-02-30T12:00',timeZone:'Europe/Moscow'}));assert.throws(()=>resolveTime({localTime:'2026-10-05T12:00',timeZone:'invalid'}));
+});

@@ -24,3 +24,8 @@ test('missed window and stale claims are terminal',t=>{
  const store=openJobStore({path:fixture(t),clock:()=>now});
  const job=store.createJob({scheduledAt:new Date(now-120001).toISOString()},'late');store.recover(now);assert.equal(store.getJob(job.id).state,'missed');assert.equal(store.claim(job.id,now),null);store.close();
 });
+test('unknown lock and PID reuse fail closed; dead owner recovers',t=>{
+ const path=fixture(t);writeFileSync(path+'.lock','{}');assert.throws(()=>openJobStore({path}));
+ writeFileSync(path+'.lock',JSON.stringify({pid:process.pid,start:'different-start',nonce:'old'}));assert.throws(()=>openJobStore({path}));
+ writeFileSync(path+'.lock',JSON.stringify({pid:2147483647,start:'old',nonce:'old'}));const store=openJobStore({path});store.close();
+});

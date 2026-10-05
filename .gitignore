@@ -12,3 +12,7 @@ __pycache__/
 Изображение ChatGPT*.png
 
 data/
+
+.playwright-cli/
+output/playwright/
+.impeccable/

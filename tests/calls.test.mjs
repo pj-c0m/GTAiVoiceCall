@@ -34,3 +34,10 @@ for (const failure of ['start-error','socket-close']) {
     }
   });
 }
+test('PBX ended then Live socket close completes teardown once',async t=>{
+ const server=new WebSocketServer({port:0});await once(server,'listening');const hub={openai:new OpenAI({apiKey:'test',baseURL:`http://127.0.0.1:${server.address().port}/v1`}),calls:new Map(),finished:new Map(),pendingCleanup:new Set(),pendingLive:new Set(),hangup(){},sendAudio(){}};
+ const peer=once(server,'connection');const call=new PhoneCall(hub,1,{to:'test:sim1',session:{model:'gpt-live-1'}});hub.calls.set(1,call);const [ws]=await peer;
+ call.onBridge({state:'answered',id:'fixture'});call.onLive({type:'session.started',session:{id:'live'}});call.onBridge({state:'ended',reason:'Normal Clearing'});
+ ws.close();await new Promise(r=>setTimeout(r,100));
+ try{assert.equal(call.teardownDone,true);assert.equal(hub.calls.size,0);assert.equal(call.result().cleanupConfirmed,true);}finally{call.teardown();for(const s of server.clients)s.terminate();server.close();}
+});

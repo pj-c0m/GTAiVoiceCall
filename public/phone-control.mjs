@@ -39,7 +39,7 @@ export async function mountPhoneControl(root,{fetch:request=globalThis.fetch,con
  function facts(target,entries){target.replaceChildren();for(const [label,value] of entries){const row=el('div');row.append(el('dt',label),el('dd',String(value??'—')));target.append(row);}}
  form.onsubmit=async e=>{e.preventDefault();if(busy||uploading)return;busy=true;clearError();$('job-preview').disabled=true;try{
   const payload={to:field('to').value,name:field('name').value,when:field('when').value,localTime:field('localTime').value,timeZone:field('timeZone').value,topic:field('topic').value,goal:field('goal').value,instructions:field('instructions').value,profile:field('profile').value,voice:field('voice').value,maxDurationSeconds:Number(field('duration').value)*60,files};
-  const preview=await api('/api/jobs/preview',json(payload));submission=createSubmission(payload);
+  const preview=await api('/api/jobs/preview',json(payload));submission=createSubmission({...payload,previewToken:preview.previewToken});
   facts($('job-review-facts'),[['Адресат',`${preview.name||'Без имени'} · ${preview.to}`],['Когда',preview.when==='now'?'Сейчас':timeLabel(preview)],['Тема',preview.topic],['Цель',preview.goal],['Сценарий',preview.profileLabel],['Голос',preview.voice],['Инструкции',preview.instructions||'Из сценария'],['Файлы',preview.files.map(f=>`${f.name} (${f.text.length} символов)`).join(', ')||'Нет'],['Длительность',`${preview.maxDurationSeconds/60} мин`]]);
   form.hidden=true;$('job-review').hidden=false;$('job-confirm').textContent=preview.when==='now'?'Позвонить сейчас':'Запланировать звонок';$('job-review').focus();
  }catch(e){error(e);}finally{busy=false;$('job-preview').disabled=false;}};
