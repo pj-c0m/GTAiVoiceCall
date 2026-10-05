@@ -46,8 +46,8 @@ RTP_HOST = os.environ.get("RTP_HOST", "127.0.0.1")
 RTP_PORT_BASE = int(os.environ.get("RTP_PORT_BASE", "40000"))
 MAX_CALLS = int(os.environ.get("MAX_CALLS", "2"))
 RING_TIMEOUT = int(os.environ.get("RING_TIMEOUT", "45"))
-# Пока идут тесты — список номеров, на которые вообще можно звонить (через запятую). Пусто = любые.
-ALLOWED_NUMBERS = {n.strip() for n in os.environ.get("ALLOWED_NUMBERS", "").split(",") if n.strip()}
+# Пустой список и none запрещают реальные звонки; локальные сценарии доступны.
+ALLOWED_NUMBERS = {n.strip() for n in os.environ.get("ALLOWED_NUMBERS", "none").split(",") if n.strip()}
 RECORD_CALLS = os.environ.get("RECORD_CALLS", "off").lower() in ("on", "1", "yes")   # писать все звонки
 
 FRAME = 160                     # байт A-law = 20 мс при 8 кГц
@@ -328,6 +328,10 @@ class Hub:
                 log.info("мозг отключился (%s), код закрытия %s, активных звонков: %d",
                          peer, ws.close_code, len(self.calls))
                 record(event="brain_disconnected", ip=peer, close_code=ws.close_code, active_calls=len(self.calls))
+                self.outq.clear()
+                for call in list(self.calls.values()):
+                    await call.hangup()
+                    await call.ended("мост с моделью отключился")
         return ws
 
     async def command(self, ws, cmd):
@@ -361,7 +365,7 @@ class Hub:
             problem = "достигнут лимит одновременных звонков"
         elif not number:
             problem = "не разобрал номер"
-        elif not is_test and ALLOWED_NUMBERS and number[-10:] not in {n[-10:] for n in ALLOWED_NUMBERS}:
+        elif not is_test and number[-10:] not in {n[-10:] for n in ALLOWED_NUMBERS if normalize_number(n)}:
             problem = "номер не в списке разрешённых для тестов"
         if problem:
             log.warning("звонок отклонён: %s (to=%s, slot=%s)", problem, raw, slot)
@@ -471,7 +475,7 @@ async def main():
     await runner.setup()
     await web.TCPSite(runner, BIND_HOST, BIND_PORT).start()
     log.info("диалер слушает %s:%s, лимит звонков %s, разрешённые номера: %s",
-             BIND_HOST, BIND_PORT, MAX_CALLS, ", ".join(sorted(ALLOWED_NUMBERS)) or "любые")
+             BIND_HOST, BIND_PORT, MAX_CALLS, ", ".join(sorted(ALLOWED_NUMBERS)) or "реальные звонки запрещены")
     hub.pump = asyncio.create_task(hub.pump_audio())
     record(event="dialer_started", max_calls=MAX_CALLS, allowed=sorted(ALLOWED_NUMBERS))
     try:

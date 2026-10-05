@@ -31,6 +31,10 @@
 - **Безопасность по умолчанию** — SIP/RTP только с адреса АТС, мост по токену и белому списку,
   список разрешённых номеров, ARI на localhost.
 
+## GTAiVoiceCall MVP1
+
+Эта ветка сохраняет upstream [kpshinnik/gpt_voice_pbx](https://github.com/kpshinnik/gpt_voice_pbx) и MIT attribution. Фактический deployment и текущие ограничения описаны в [DEPLOY.md](DEPLOY.md), проверенные результаты — в [evidence](docs/evidence/mvp1-20261005.md). MVP1 пока не принят: выбранный OpenAI project не имеет доступа к `gpt-live-1`; PSTN выключен до успешного self-test. Команды ниже описывают исходный upstream; для этой ветки используйте DEPLOY.md.
+
 ## Быстрый старт
 
 Самый простой путь — отдать `SETUP-AGENT.md` ИИ-агенту (Claude Code, Codex и т.п.): он опросит
