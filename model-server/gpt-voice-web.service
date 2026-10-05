@@ -16,7 +16,7 @@ NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
-ReadWritePaths=/srv/gpt-voice/logs
+ReadWritePaths=/srv/gpt-voice/logs /srv/gpt-voice/data
 
 [Install]
 WantedBy=multi-user.target

@@ -47,6 +47,7 @@ apt-get install -y -qq nodejs npm > /root/gtaivc-install-model.log 2>&1
 node -e 'process.exit(+process.versions.node.split(".")[0]>=22?0:1)'
 id gptvoice >/dev/null 2>&1 || useradd -r -s /usr/sbin/nologin -d /srv/gpt-voice gptvoice
 mkdir -p /srv/gpt-voice/logs
+install -d -m 700 -o gptvoice -g gptvoice /srv/gpt-voice/data
 cp -a /root/gtaivc-stage/. /srv/gpt-voice/
 cd /srv/gpt-voice
 npm ci --omit=dev --silent > /root/gtaivc-install-model-npm.log 2>&1

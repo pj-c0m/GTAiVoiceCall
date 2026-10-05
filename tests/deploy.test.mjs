@@ -43,3 +43,7 @@ test('Secrets разделены, PSTN закрыт, Mango subnet и port60000 �
   assert.notEqual(r.status,0);
  } finally { rmSync(root,{recursive:true,force:true}); }
 });
+test('model unit permits persistent scheduler data and installer creates it',()=>{
+ const service=readFileSync('model-server/gpt-voice-web.service','utf8');assert.match(service,/ReadWritePaths=.*\/srv\/gpt-voice\/data/);
+ const installer=readFileSync('scripts/deploy-mvp1.mjs','utf8');assert.match(installer,/install -d -m 700 -o gptvoice -g gptvoice \/srv\/gpt-voice\/data/);
+});
