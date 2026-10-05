@@ -16,3 +16,8 @@ test('invalid types and file budgets reject explicitly',()=>{
 });
 test('scheduled calls require an explicit timezone',()=>assert.throws(()=>resolveTime({localTime:'2026-10-06T13:00'})));
 test('validation identifies the field needing correction',()=>{try{validateJobInput({to:'test:sim1',maxDurationSeconds:1},now);assert.fail('expected validation');}catch(e){assert.equal(e.field,'maxDurationSeconds');}try{validateContact({to:'bad'});assert.fail();}catch(e){assert.equal(e.field,'to');}});
+test('GUI допускает только код +7, возвращает международный формат и сохраняет sim',()=>{
+ for(const to of ['+7 (999) 000-00-00','79990000000']) assert.equal(validateContact({to}).to,'+79990000000');
+ assert.equal(validateContact({to:'test:sim1'}).to,'test:sim1');
+ for(const to of ['89990000000','9990000000','+19990000000','+799900000001','+7999000000']) assert.throws(()=>validateContact({to}),/\+7/);
+});

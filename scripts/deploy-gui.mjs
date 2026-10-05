@@ -4,7 +4,8 @@ import {parseEnv} from 'node:util';
 import {spawnSync} from 'node:child_process';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
-const [configPath,passwordPath,keyPath]=process.argv.slice(2);
+const [configPath,passwordPath,keyPath,pstnPolicy]=process.argv.slice(2);
+if (pstnPolicy && pstnPolicy !== "prefix7") throw Error("Допускается только явная политика prefix7");
 if(!configPath||!passwordPath||!keyPath)throw Error('Нужны CONFIG GUIPASS SSH_KEY');
 const config=parseEnv(readFileSync(configPath,'utf8'));
 const model=config.MODEL_SSH,pbx=config.PBX_SSH,domain=config.BRIDGE_DOMAIN;
@@ -28,7 +29,7 @@ try{
  const status=JSON.parse(remote(model,'curl -fsS http://127.0.0.1:3000/api/pbx/status\n'));
  if(status.calls?.length||status.availability?.busy)throw Error('Есть активный/неосвобождённый звонок');
  for(const host of [model,pbx]){
-  remote(host,`set -euo pipefail\numask 077\nmkdir -p ${backup}\nsystemctl list-unit-files > ${backup}/units.txt\nss -lntup > ${backup}/ports.txt\npaths=()\nfor p in /srv/gpt-voice /etc/systemd/system/gpt-voice-web.service /etc/systemd/system/gpt-voice-gui-tunnel.service /etc/nginx /etc/gpt-voice /etc/ssh/sshd_config /etc/ssh/sshd_config.d /var/lib/gtaivc-gui-tunnel; do [ ! -e "$p" ] || paths+=("$p"); done\ntar -czf ${backup}/configs.tar.gz "\${paths[@]}" 2>/dev/null\n`);
+  remote(host,`set -euo pipefail\numask 077\nmkdir -p ${backup}\nsystemctl list-unit-files > ${backup}/units.txt\nss -lntup > ${backup}/ports.txt\npaths=()\nfor p in /srv/gpt-voice /srv/gpt-voice-dialer /etc/systemd/system/gpt-voice-web.service /etc/systemd/system/gpt-voice-gui-tunnel.service /etc/nginx /etc/gpt-voice /etc/ssh/sshd_config /etc/ssh/sshd_config.d /var/lib/gtaivc-gui-tunnel; do [ ! -e "$p" ] || paths+=("$p"); done\ntar -czf ${backup}/configs.tar.gz "\${paths[@]}" 2>/dev/null\n`);
  }
  console.log('Inventory/rollback сохранены:',backup);
  for(const f of ['server.mjs','package.json','package-lock.json','lib','public','profiles','model-server'])cpSync(f,join(stage,f),{recursive:true});
@@ -46,5 +47,13 @@ try{
  const location=readFileSync('pbx-server/nginx-gui-location.conf','utf8');
  // Передаётся только hash GUI-пароля; cleartext и OpenAI key на PBX не попадают.
  remote(pbx,`set -euo pipefail\numask 077\ncat > /etc/gpt-voice/gui.htpasswd <<'HASH'\nadmin:${hash}\nHASH\nchown root:www-data /etc/gpt-voice/gui.htpasswd\nchmod 640 /etc/gpt-voice/gui.htpasswd\ncat > /etc/gpt-voice/gui-tunnel/known_hosts <<'HOSTKEY'\n${modelIp} ${hostKey}\nHOSTKEY\nchmod 644 /etc/gpt-voice/gui-tunnel/known_hosts\ncat > /etc/systemd/system/gpt-voice-gui-tunnel.service <<'UNIT'\n${unit}\nUNIT\ncat > /etc/nginx/gtaivc-gui-location.conf <<'LOCATION'\n${location}\nLOCATION\npython3 - <<'PY'\nfrom pathlib import Path\np=Path('/etc/nginx/sites-available/gpt-voice-pbx')\ns=p.read_text();old='location / { return 404; }';new='include /etc/nginx/gtaivc-gui-location.conf;'\nif old not in s and new not in s: raise RuntimeError('Неизвестный nginx config; остановлено')\np.write_text(s.replace(old,new))\nPY\nnginx -t\nsystemctl daemon-reload\nsystemctl enable --now gpt-voice-gui-tunnel\nsystemctl restart gpt-voice-gui-tunnel\nsystemctl reload nginx\nfor n in $(seq 1 20); do if curl -fsS http://127.0.0.1:13000/api/pbx/status >/dev/null; then break; fi; sleep 1; done\ncurl -fsS http://127.0.0.1:13000/api/pbx/status >/dev/null\nsystemctl is-active --quiet gpt-voice-gui-tunnel nginx\n`);
- console.log('GUI опубликован:',`https://${domain}/?profile=example-call`,'SHA:',sha);
+ if(pstnPolicy){
+  // Новый режим PSTN включается только отдельным явным аргументом владельца.
+  const current=JSON.parse(remote(model,'curl -fsS http://127.0.0.1:3000/api/pbx/status\n'));
+  if(current.calls?.length||current.availability?.busy)throw Error('Есть активный звонок; изменение политики остановлено');
+  run('scp',[...sshArgs,'pbx-server/dialer.py',pbx+':/root/gtaivc-gui-dialer.py']);
+  remote(pbx,`set -euo pipefail\n/srv/gpt-voice-dialer/.venv/bin/python -m py_compile /root/gtaivc-gui-dialer.py\ninstall -m 644 -o gptvoice -g gptvoice /root/gtaivc-gui-dialer.py /srv/gpt-voice-dialer/dialer.py\npython3 - <<'PY'\nfrom pathlib import Path\np=Path('/etc/gpt-voice/dialer.env')\ns=[line for line in p.read_text().splitlines() if not line.startswith('PSTN_NUMBER_POLICY=')]\ns.append('PSTN_NUMBER_POLICY=prefix7')\np.write_text('\\n'.join(s)+'\\n');p.chmod(0o640)\nPY\nsystemctl restart gpt-voice-dialer\nsystemctl is-active --quiet gpt-voice-dialer\nrm /root/gtaivc-gui-dialer.py\n`);
+  console.log('PSTN policy: +7; остальные номера запрещены');
+ }
+ console.log('GUI опубликован:' ,`https://${domain}/?profile=example-call`,'SHA:',sha);
 }finally{rmSync(stage,{recursive:true,force:true});}

@@ -13,6 +13,31 @@ d = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(d)
 
 class GuardTests(unittest.IsolatedAsyncioTestCase):
+    def test_prefix7_policy_keeps_country_boundary(self):
+        old = d.PSTN_NUMBER_POLICY
+        self.addCleanup(setattr, d, 'PSTN_NUMBER_POLICY', old)
+        d.PSTN_NUMBER_POLICY = 'prefix7'
+        for raw in ['+79990000000', '79990000000', '+7 (999) 000-00-00']:
+            self.assertTrue(d.pstn_number_allowed(raw, d.normalize_number(raw)))
+        for raw in ['89990000000', '9990000000', '+19990000000', '+799900000001', 'abc79990000000']:
+            self.assertFalse(d.pstn_number_allowed(raw, d.normalize_number(raw)))
+
+    async def test_prefix7_reaches_mock_originate_and_rejects_8(self):
+        from unittest.mock import patch
+        old = d.PSTN_NUMBER_POLICY
+        self.addCleanup(setattr, d, 'PSTN_NUMBER_POLICY', old)
+        d.PSTN_NUMBER_POLICY = 'prefix7'
+        with patch.object(d.Call, 'dial', new_callable=AsyncMock) as dial:
+            hub = d.Hub()
+            hub.notify = AsyncMock()
+            ws = AsyncMock()
+            await hub.start_call(ws, {'slot': 1, 'to': '+79990000000'})
+            dial.assert_awaited_once()
+            self.assertEqual(hub.calls[1].to, '+79990000000')
+            await hub.start_call(ws, {'slot': 2, 'to': '89990000000'})
+            self.assertEqual(dial.await_count, 1)
+            self.assertNotIn(2, hub.calls)
+
     async def test_bridge_command_after_keepalive_ping(self):
         import asyncio
         hub = d.Hub()

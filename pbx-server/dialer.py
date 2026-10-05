@@ -13,6 +13,7 @@ import logging.handlers
 import os
 import random
 import secrets
+import re
 import struct
 import time
 import uuid
@@ -48,6 +49,9 @@ MAX_CALLS = int(os.environ.get("MAX_CALLS", "2"))
 RING_TIMEOUT = int(os.environ.get("RING_TIMEOUT", "45"))
 # Пустой список и none запрещают реальные звонки; локальные сценарии доступны.
 ALLOWED_NUMBERS = {n.strip() for n in os.environ.get("ALLOWED_NUMBERS", "none").split(",") if n.strip()}
+PSTN_NUMBER_POLICY = os.environ.get("PSTN_NUMBER_POLICY", "allowlist")
+if PSTN_NUMBER_POLICY not in ("allowlist", "prefix7"):
+    raise RuntimeError("Неизвестная PSTN_NUMBER_POLICY")
 RECORD_CALLS = os.environ.get("RECORD_CALLS", "off").lower() in ("on", "1", "yes")   # писать все звонки
 
 FRAME = 160                     # байт A-law = 20 мс при 8 кГц
@@ -62,6 +66,13 @@ def normalize_number(raw: str):
     if len(digits) == 10:
         return DIAL_PREFIX + digits
     return None
+
+
+def pstn_number_allowed(raw: str, number: str):
+    if PSTN_NUMBER_POLICY == "prefix7":
+        cleaned = "".join(ch for ch in raw if ch not in " ()-\t")
+        return bool(re.fullmatch(r"\+?7[0-9]{10}", cleaned))
+    return number[-10:] in {n[-10:] for n in ALLOWED_NUMBERS if normalize_number(n)}
 
 
 # ── ARI ────────────────────────────────────────────────────────────────────
@@ -303,7 +314,7 @@ class Hub:
         peer = request.headers.get("X-Real-IP", request.remote)
         log.info("мозг подключился с %s", peer)
         record(event="brain_connected", ip=peer)
-        await ws.send_json({"type": "hello", "calls": [self.describe(c) for c in self.calls.values()]})
+        await ws.send_json({"type": "hello", "calls": [self.describe(c) for c in self.calls.values()], "pstn": {"policy": PSTN_NUMBER_POLICY}})
         try:
             async for msg in ws:
                 if msg.type == WSMsgType.BINARY:
@@ -365,8 +376,8 @@ class Hub:
             problem = "достигнут лимит одновременных звонков"
         elif not number:
             problem = "не разобрал номер"
-        elif not is_test and number[-10:] not in {n[-10:] for n in ALLOWED_NUMBERS if normalize_number(n)}:
-            problem = "номер не в списке разрешённых для тестов"
+        elif not is_test and not pstn_number_allowed(raw, number):
+            problem = "Разрешены только номера +7 и ещё 10 цифр" if PSTN_NUMBER_POLICY == "prefix7" else "номер не в списке разрешённых для тестов"
         if problem:
             log.warning("звонок отклонён: %s (to=%s, slot=%s)", problem, raw, slot)
             record(event="rejected", reason=problem, to=raw, slot=slot)
@@ -453,7 +464,7 @@ class Hub:
             asterisk = info["system"]["version"]
         except Exception as error:
             asterisk = f"недоступен: {error}"
-        return web.json_response({"asterisk": asterisk, "brain": bool(self.brain and not self.brain.closed),
+        return web.json_response({"asterisk": asterisk, "brain": bool(self.brain and not self.brain.closed), "pstn": {"policy": PSTN_NUMBER_POLICY},
                                   "calls": [self.describe(c) for c in self.calls.values()]})
 
 

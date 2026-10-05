@@ -14,6 +14,7 @@ import { openJobStore } from "./lib/job-store.mjs";
 import { Scheduler } from "./lib/scheduler.mjs";
 import { mountJobsApi } from "./lib/jobs-api.mjs";
 import { browserOriginAllowed } from "./lib/browser-origin.mjs";
+import { validateContact } from "./lib/job-input.mjs";
 import { CallHub } from "./lib/calls.mjs";
 import { brainLog, callSummary, LOG_DIR, Transcript } from "./lib/log.mjs";
 
@@ -199,12 +200,17 @@ app.post("/api/calls", async (request, response) => {
   if (!hub) { response.status(503).json({ error: "Мост с АТС не настроен: нет BRIDGE_URL / BRIDGE_TOKEN в .env" }); return; }
   const { to, name, record } = request.body ?? {};
   if (typeof to !== "string" || !to.trim()) { response.status(400).json({ error: "Нужен номер" }); return; }
+  let target = to.trim();
+  if (!target.startsWith('test:')) {
+    try { target = validateContact({to:target}).to; }
+    catch (error) { response.status(400).json({error:error.message,field:'to'}); return; }
+  }
   let brief;
   try { brief = await briefFrom(request.body); } catch (error) { response.status(400).json({ error: error.message }); return; }
   const clientName = typeof name === "string" ? name.trim() : "";
   const session = sessionFor(brief.profile, { ...brief, backendModel: BACKEND_MODEL, phone: true, name: clientName });
   try {
-    const call = hub.start({ to: to.trim(), name: clientName, session, label: brief.profile.label, profileId: brief.profile.id,
+    const call = hub.start({ to: target, name: clientName, session, label: brief.profile.label, profileId: brief.profile.id,
                              record: Boolean(record), agentName: brief.profile.name });
     response.status(201).json({ id: call.id, slot: call.slot, meta: metaOf(brief.profile, session) });
   } catch (error) {
@@ -245,6 +251,8 @@ const REASONS = { "Normal Clearing": "разговор состоялся", "No 
 app.post("/api/campaigns", async (request, response) => {
   if (!hub) { response.status(503).json({ error: "Мост с АТС не настроен: нет BRIDGE_URL / BRIDGE_TOKEN в .env" }); return; }
   const raw = Array.isArray(request.body?.entries) ? request.body.entries.slice(0, 200) : [];
+  try { for (const entry of raw) if (!String(entry?.to ?? '').startsWith('test:')) validateContact({to:entry?.to}); }
+  catch (error) { response.status(400).json({error:error.message,field:'to'}); return; }
   const entries = raw.map((e) => ({ to: String(e?.to ?? "").trim(), name: String(e?.name ?? "").trim().slice(0, 60) }))
     .filter((e) => e.to.startsWith("test:") || e.to.replace(/\D/g, "").length >= 10);
   if (!entries.length) { response.status(400).json({ error: "В списке нет ни одного номера" }); return; }
