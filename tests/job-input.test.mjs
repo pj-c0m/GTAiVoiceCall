@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {resolveTime,validateJobInput} from '../lib/job-input.mjs';
+import {resolveTime,validateJobInput,validateContact} from '../lib/job-input.mjs';
 const now=Date.parse('2026-10-05T09:00:00Z');
 test('Moscow timezone roundtrip',()=>assert.equal(resolveTime({localTime:'2026-10-05T13:00',timeZone:'Europe/Moscow'}).scheduledAt,'2026-10-05T10:00:00.000Z'));
 for(const localTime of ['2026-03-08T02:30','2026-11-01T01:30']) test(`DST rejects ${localTime}`,()=>assert.throws(()=>resolveTime({localTime,timeZone:'America/New_York'})));
@@ -15,3 +15,4 @@ test('invalid types and file budgets reject explicitly',()=>{
  assert.throws(()=>resolveTime({localTime:'2026-02-30T12:00',timeZone:'Europe/Moscow'}));assert.throws(()=>resolveTime({localTime:'2026-10-05T12:00',timeZone:'invalid'}));
 });
 test('scheduled calls require an explicit timezone',()=>assert.throws(()=>resolveTime({localTime:'2026-10-06T13:00'})));
+test('validation identifies the field needing correction',()=>{try{validateJobInput({to:'test:sim1',maxDurationSeconds:1},now);assert.fail('expected validation');}catch(e){assert.equal(e.field,'maxDurationSeconds');}try{validateContact({to:'bad'});assert.fail();}catch(e){assert.equal(e.field,'to');}});

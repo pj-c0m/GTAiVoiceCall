@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtempSync,writeFileSync,rmSync} from 'node:fs';
+import {mkdtempSync,writeFileSync,rmSync,chmodSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {openJobStore} from '../lib/job-store.mjs';
@@ -29,3 +29,5 @@ test('unknown lock and PID reuse fail closed; dead owner recovers',t=>{
  writeFileSync(path+'.lock',JSON.stringify({pid:process.pid,start:'different-start',nonce:'old'}));assert.throws(()=>openJobStore({path}));
  writeFileSync(path+'.lock',JSON.stringify({pid:2147483647,start:'old',nonce:'old'}));const store=openJobStore({path});store.close();
 });
+test('unchanged waiting status does not rewrite update timestamp',t=>{let time=now;const store=openJobStore({path:fixture(t),clock:()=>time});const job=store.createJob({scheduledAt:new Date(now).toISOString()},'stable');store.updateAttempt(job.id,{state:'waiting',reason:'busy'});const stamp=store.getJob(job.id).updatedAt;time+=1000;store.updateAttempt(job.id,{state:'waiting',reason:'busy'});assert.equal(store.getJob(job.id).updatedAt,stamp);store.close();});
+test('read-only directory fails without replacing existing database',t=>{const path=fixture(t);let store=openJobStore({path});store.close();const dir=path.slice(0,path.lastIndexOf('/'));chmodSync(dir,0o500);try{assert.throws(()=>openJobStore({path}));}finally{chmodSync(dir,0o700);}store=openJobStore({path});assert.deepEqual(store.listJobs(),[]);store.close();});

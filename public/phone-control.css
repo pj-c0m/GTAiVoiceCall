@@ -14,3 +14,5 @@ body[data-mode="phone"] .controls,body[data-mode="phone"] .stage{display:none}
 .phone-control ::selection{background:var(--lime)}.phone-control input,.phone-control textarea{caret-color:var(--ink)}.phone-control :focus-visible{outline:2px solid var(--ink);outline-offset:3px}.phone-control *{scrollbar-color:var(--rule) var(--page)}
 @media(max-width:800px){.phone-layout{grid-template-columns:1fr;gap:42px}.phone-heading{display:block}.phone-heading h2{font-size:26px}.phone-heading .line-status{margin-top:16px;max-width:none}.phone-control{padding-top:26px}.job-row>span:last-child{max-width:50%}.phone-control dl>div{grid-template-columns:100px 1fr}}
 @media(prefers-reduced-motion:no-preference){#job-review:not([hidden]){animation:review-appear .2s ease-out}@keyframes review-appear{from{background:var(--lime-soft)}to{background:transparent}}}
+
+.phone-control .field-error{display:block;margin-top:6px;color:#a42119;font-size:12px;font-weight:400}.phone-control [aria-invalid="true"]{border-color:#a42119}
