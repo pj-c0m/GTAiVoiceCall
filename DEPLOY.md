@@ -138,8 +138,8 @@ active/dispatching становятся unknown. Новый разговор т�
 Карточка проверки фиксирует профиль/session на 10 минут в памяти сервера;
 restart требует проверки заново. После POST задание устойчиво. Повтор HTTP
 использует Idempotency-Key; изменённый payload с тем же key получает 409.
-API mutations проверяют Origin. UI рассчитан на loopback/SSH tunnel, без
-публичной аутентификации; не публиковать порт в интернете в этом scope.
+Все API и audio WebSocket проверяют Origin. Публичный доступ защищён
+HTTPS proxy с авторизацией; model port доступен только на loopback.
 
 ### Backup, restore и rollback
 

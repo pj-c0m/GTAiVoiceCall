@@ -1,7 +1,7 @@
 # Handoff project main: GUI и устойчивый scheduler
 
 Task branch: `codex/call-control-gui-20261005`; база `043ce43`.
-Кодовая контрольная точка: `5ed6284`; итоговый SHA документации сообщён в task-chat.
+Кодовая контрольная точка публичного GUI: `44ab5fe`; итоговый SHA документации сообщён в task-chat.
 Не интегрировано в main. По новому прямому запросу владельца 2026-10-05
 GUI развёрнут на production с HTTPS-авторизацией: https://4pj.com.ru/.
 
@@ -17,7 +17,7 @@ NOT VERIFIED: новый PSTN smoke; выбор политики номеров 
 Номера/allowlist/recording production не менялись; общий dotenv не копировался.
 
 Рекомендуемая проверка координатора после integration: npm ci, npm test,
-Python regression, затем отдельно решить deployment с inventory/rollback.
+Python regression; deployment уже выполнен из подтверждённой task-ветки.
 Нужны Node 22.22.1+, постоянный writable data каталог и один model process;
 не размещать operator API публично без отдельной аутентификации.
 Главный runtime компромисс: unknown/missed не повторяются автоматически,
