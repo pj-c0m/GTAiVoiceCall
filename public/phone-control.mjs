@@ -1,3 +1,4 @@
+export const meterColumns=(width,pad=66,column=3)=>Math.max(0,Math.ceil((width-pad)/column));
 export const createSubmission=payload=>({key:globalThis.crypto.randomUUID(),payload:structuredClone(payload)});
 export function timeLabel(job){return `${new Date(job.scheduledAt).toLocaleString('ru-RU',{timeZone:job.timeZone??'Europe/Moscow',dateStyle:'medium',timeStyle:'short'})} · ${job.timeZone??'Europe/Moscow'} · UTC${job.offset??'+03:00'}`;}
 const states={scheduled:'Запланирован',waiting:'Ожидает линию',dispatching:'Начинаем звонок',active:'На линии',completed:'Разговор завершён',failed:'Звонок не состоялся',cancelled:'Отменён',missed:'Время пропущено',unknown:'Исход требует проверки'};

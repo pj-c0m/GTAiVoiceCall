@@ -1,3 +1,4 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {createSubmission,timeLabel} from '../public/phone-control.mjs';
 test('retry retains key and payload until acknowledged',()=>{const a=createSubmission({to:'test:sim1'});assert.equal(a.key,a.key);assert.deepEqual(a.payload,{to:'test:sim1'});assert.notEqual(createSubmission({to:'test:sim1'}).key,a.key);});
 test('time label includes timezone and offset',()=>assert.match(timeLabel({scheduledAt:'2026-10-05T10:00:00.000Z',timeZone:'Europe/Moscow',offset:'+03:00'}),/Europe\/Moscow.*\+03:00/));
+test('hidden meter never yields a negative buffer capacity',async()=>{const {meterColumns}=await import('../public/phone-control.mjs');assert.equal(meterColumns(0),0);assert.equal(meterColumns(65),0);assert.equal(meterColumns(366),100);});

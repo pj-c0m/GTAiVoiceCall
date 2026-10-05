@@ -311,7 +311,7 @@ select{padding-right:36px;appearance:none;background-image:linear-gradient(45deg
 <audio id="out" autoplay></audio>
 
 <script type="module">
-import { mountPhoneControl } from "/phone-control.mjs";
+import { mountPhoneControl, meterColumns } from "/phone-control.mjs";
 const $ = (id) => document.getElementById(id);
 const DEMO = new URLSearchParams(location.search).has("demo");   // ?demo=1 — интерфейс без микрофона
 const body = document.body;
@@ -528,10 +528,11 @@ function sizeMeter(){ const dpr = window.devicePixelRatio || 1; meter.width = me
 addEventListener("resize", sizeMeter);
 function drawMeter(now){
   requestAnimationFrame(drawMeter);
+  if (uiMode === "phone") return;
   const w = meter.clientWidth, h = meter.clientHeight, axis = Math.round(h / 2), plot = w - PAD;
   if (now - lastSample >= STEP_MS) {
     lastSample = now; cols.push({ y: level.you, a: level.agent });
-    while (cols.length > Math.ceil(plot / COL)) cols.shift();
+    while (cols.length > meterColumns(w, PAD, COL)) cols.shift();
     level.you *= 0.72; level.agent *= 0.72;
   }
   mctx.clearRect(0, 0, w, h); mctx.lineWidth = 1;
