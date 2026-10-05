@@ -185,3 +185,49 @@ Transcript/usage доступны после restart; промежуточные
 100 карточками. При заполнении создание отклоняется; автоматического удаления
 истории нет. Редактирование сохранённого задания выполняется отменой и созданием
 нового. Local tests не доказывают новый production/PSTN acceptance.
+
+
+## Публичный GUI: HTTPS и пароль
+
+Развёртывание новой версии выполняется `scripts/deploy-gui.mjs` из task-ветки
+по прямому запросу владельца. Авторизация — HTTP Basic, логин `admin`, пароль
+из локального `guipass.env` (одна строка или `GUI_PASSWORD=...`). Файл исключён
+из Git; deployment выставляет 0600. На PBX хранится только SHA-512 crypt hash
+в `/etc/gpt-voice/gui.htpasswd`, root:www-data 0640. Пароль не передаётся
+серверу модели и не записывается в Git/логи.
+
+Адрес: `https://4pj.com.ru/?profile=example-call`. HTTPS nginx на PBX
+защищает все пути GUI/API, SSE и WebSocket; `/pbx/` сохраняет прежние IP ACL
+и bearer token. Basic credentials браузер хранит до закрытия сессии браузера;
+после работы на чужом ПК закрывайте браузер. Для смены пароля обновите
+закрытый файл и выполните deployment повторно.
+
+`gpt-voice-gui-tunnel` на PBX держит SSH forwarding
+`127.0.0.1:13000 → NL 127.0.0.1:3000`. Отдельный key допускает только
+этот destination; shell, TTY, agent/X11 forwarding и remote forwarding
+запрещены. Host key получен через проверенное административное SSH
+соединение; StrictHostKeyChecking=yes. Публичный порт модели не открывается.
+Nginx передаёт настоящий IP; сервер доверяет proxy только на loopback.
+Чужой Origin и cross-site браузерные запросы запрещены для всех API
+и WebSocket. HTTPS необходим для микрофона/WebRTC.
+
+```bash
+node scripts/deploy-gui.mjs /absolute/path/GTAiVoiceCall-MVP1.env /absolute/path/guipass.env /absolute/path/ssh-key
+```
+
+Скрипт проверяет отсутствие активных звонков, сохраняет inventory и scoped
+backup на обоих хостах в `/root/gtaivc-gui-rollback-<UTC>`, обновляет только
+whitelist кода и model unit. Существующие `.env`, SIP/ARI/bridge credentials,
+БД и allowlist не заменяются. При повторном deployment БД копируется отдельно
+после остановки сервиса. `DEPLOYED_SHA` хранит версию кода. Zabbix не меняется.
+
+Rollback: остановить model service, восстановить код/unit и закрытый env из
+выбранного scoped backup; данные новых звонков сохранить отдельно. Для
+возврата snapshot БД сначала применить `scripts/restore-job-state.mjs`.
+На PBX восстановить прежний nginx vhost, проверить `nginx -t`, reload nginx
+и остановить/отключить `gpt-voice-gui-tunnel`. Не восстанавливать весь `/etc`
+и не удалять общие пакеты.
+
+Публичный доступ не расширяет автоматически allowlist PSTN. Для реальных
+звонков требуется выбранная владельцем политика номеров; test:sim1
+работает без открытия PSTN.

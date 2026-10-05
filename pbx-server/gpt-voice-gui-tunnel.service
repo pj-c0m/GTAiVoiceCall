@@ -1,0 +1,18 @@
+[Unit]
+Description=GTAiVoiceCall GUI: закрытый SSH tunnel к серверу модели
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=gptvoice
+Group=gptvoice
+ExecStart=/usr/bin/ssh -NT -L 127.0.0.1:13000:127.0.0.1:3000 -i /etc/gpt-voice/gui-tunnel/id_ed25519 -o UserKnownHostsFile=/etc/gpt-voice/gui-tunnel/known_hosts -o StrictHostKeyChecking=yes -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 guitunnel@147.45.132.111
+Restart=always
+RestartSec=3
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

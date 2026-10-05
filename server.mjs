@@ -13,6 +13,7 @@ import { defaultProfile, loadProfiles, sessionFor, jobSessionFor, VOICES } from 
 import { openJobStore } from "./lib/job-store.mjs";
 import { Scheduler } from "./lib/scheduler.mjs";
 import { mountJobsApi } from "./lib/jobs-api.mjs";
+import { browserOriginAllowed } from "./lib/browser-origin.mjs";
 import { CallHub } from "./lib/calls.mjs";
 import { brainLog, callSummary, LOG_DIR, Transcript } from "./lib/log.mjs";
 
@@ -76,7 +77,13 @@ const hub = process.env.BRIDGE_URL && process.env.BRIDGE_TOKEN
   : null;
 
 const app = express();
-app.set("trust proxy", true);
+app.set("trust proxy", "loopback");
+app.use('/api', (request, response, next) => {
+  if (!browserOriginAllowed(request, allowedOrigins)) {
+    response.status(403).json({error:"Запрос пришёл с неизвестного адреса"}); return;
+  }
+  response.set('Cache-Control', 'no-store'); next();
+});
 app.use(express.json({ limit: "30mb" }));     // файлы-инструкции приходят base64 в JSON
 app.use(express.static(resolve(here, "public"), { index: "index.html" }));
 
@@ -291,6 +298,7 @@ app.delete("/api/campaigns/:id", (request, response) => {
 const server = http.createServer(app);
 const audioSockets = new WebSocketServer({ noServer: true });
 server.on("upgrade", (request, socket, head) => {
+  if (!browserOriginAllowed(request, allowedOrigins)) { socket.destroy(); return; }
   const match = /^\/api\/calls\/([^/?]+)\/audio$/.exec(request.url ?? "");
   const call = match && hub?.byId(match[1]);
   if (!call || call.state === "ended") { socket.destroy(); return; }
