@@ -1,0 +1,63 @@
+{
+  "origin": "https://4pj.com.ru",
+  "checkedAt": "2026-10-05T10:58:44.075Z",
+  "checks": {
+    "anonymous /": true,
+    "anonymous /phone-control.mjs": true,
+    "anonymous /api/config": true,
+    "anonymous /api/jobs": true,
+    "anonymous /api/contacts": true,
+    "anonymous /api/calls/fake/events": true,
+    "anonymous /api/calls/fake/audio": true,
+    "wrong password": true,
+    "model key + bridge ready": true,
+    "foreign origin blocked": true,
+    "contact stored": true,
+    "file extraction": true,
+    "scheduled persisted": true,
+    "scheduled cancelled": true,
+    "sim completed and cleaned": true,
+    "two-sided transcript": true,
+    "usage and cost": true,
+    "authenticated audio": true,
+    "line released": true
+  },
+  "simJobId": "b59cf5d2-f6ce-4e3a-94ff-5db560408815",
+  "result": {
+    "state": "completed",
+    "callId": "pc-muv504ig-1",
+    "cleanupConfirmed": true,
+    "talkSeconds": 30,
+    "usage": {
+      "seconds": 29
+    },
+    "estimatedLiveCostUsd": 0.02416666666666667,
+    "transcript": [
+      {
+        "channel": "you",
+        "text": " Алло? Да, слушаю",
+        "startMs": 2000,
+        "endMs": 4400
+      },
+      {
+        "channel": "agent",
+        "text": " Здравствуйте . GUI acceptance sim это София из компании «Тестком». Вы регистрировались на нашу встречу по проверке интерфейса, звоню подтвердить участие. Удобно говорить полминуты?",
+        "startMs": 2800,
+        "endMs": 13800
+      },
+      {
+        "channel": "you",
+        "text": " Эээ а что за вебинар? Напомните. Я что-то не помню",
+        "startMs": 18000,
+        "endMs": 23200
+      },
+      {
+        "channel": "agent",
+        "text": " Конечно. Это короткая онлайн-встреча, ведущая — Анна Петрова. Обсуждаем основные сценарии и визуальные баги. Сможете сегодня",
+        "startMs": 22400,
+        "endMs": 29400
+      }
+    ],
+    "audioFrames": 1838
+  }
+}

@@ -1,0 +1,34 @@
+// Проверка защищённого публичного GUI; реальные телефонные номера не используются.
+import {readFileSync,writeFileSync} from 'node:fs';
+import {parseEnv} from 'node:util';
+import {randomUUID} from 'node:crypto';
+import WebSocket from 'ws';
+const [origin,passwordFile,output]=process.argv.slice(2);
+if(!origin?.startsWith('https://')||!passwordFile)throw Error('Нужны HTTPS_ORIGIN GUIPASS [OUTPUT]');
+const raw=readFileSync(passwordFile,'utf8').trim();
+const password=raw.startsWith('GUI_PASSWORD=')?parseEnv(raw).GUI_PASSWORD:raw;
+const authorization='Basic '+Buffer.from('admin:'+password).toString('base64');
+const evidence={origin,checkedAt:new Date().toISOString(),checks:{}};
+const check=(name,value)=>{evidence.checks[name]=value;if(!value)throw Error('FAIL: '+name);console.log('PASS:',name);};
+const api=async(path,{method='GET',body,headers={}}={})=>{const response=await fetch(origin+path,{method,headers:{Authorization:authorization,Origin:origin,...(body?{'Content-Type':'application/json'}:{}),...headers},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(20000)});const data=await response.json();if(!response.ok)throw Error(`${path}: HTTP ${response.status} ${data.error??''}`);return data;};
+for(const path of ['/','/phone-control.mjs','/api/config','/api/jobs','/api/contacts','/api/calls/fake/events','/api/calls/fake/audio'])check('anonymous '+path,(await fetch(origin+path,{signal:AbortSignal.timeout(10000)})).status===401);
+check('wrong password',(await fetch(origin+'/api/config',{headers:{Authorization:'Basic '+Buffer.from('admin:deliberately-wrong').toString('base64')}})).status===401);
+const config=await api('/api/config');check('model key + bridge ready',config.hasKey&&config.pbx.connected&&config.pbx.availability?.ready&&!config.pbx.availability?.busy);
+check('foreign origin blocked',(await fetch(origin+'/api/session/report',{method:'POST',headers:{Authorization:authorization,Origin:'https://foreign.invalid','Content-Type':'application/json'},body:'{}'})).status===403);
+const contact=await api('/api/contacts',{method:'POST',body:{to:'test:sim1',name:'GUI acceptance sim'}});check('contact stored',(await api('/api/contacts')).some(c=>c.id===contact.id));await api('/api/contacts/'+contact.id,{method:'DELETE'});
+const file=await api('/api/files',{method:'POST',body:{name:'acceptance.txt',data:Buffer.from('Проверка файла без реальных звонков.').toString('base64')}});check('file extraction',file.text==='Проверка файла без реальных звонков.');
+const input={to:'test:sim1',name:'GUI acceptance sim',topic:'Проверка публичного GUI',goal:'Короткий тестовый разговор с симулятором',profile:'example-call',voice:'marin',maxDurationSeconds:30,when:'scheduled',localTime:new Date(Date.now()+86400000).toISOString().slice(0,16),timeZone:'Europe/Moscow',files:[{name:file.name,text:file.text}]};
+const preview=await api('/api/jobs/preview',{method:'POST',body:input});const planned=await api('/api/jobs',{method:'POST',body:{...input,previewToken:preview.previewToken},headers:{'Idempotency-Key':randomUUID()}});check('scheduled persisted',planned.state==='scheduled');const cancelled=await api('/api/jobs/'+planned.id,{method:'DELETE'});check('scheduled cancelled',cancelled.state==='cancelled');
+const callInput={...input,when:'now',files:[],instructions:'Это синтетический тест. Ответьте собеседнику и завершите короткий разговор.'};const p=await api('/api/jobs/preview',{method:'POST',body:callInput});const job=await api('/api/jobs',{method:'POST',body:{...callInput,previewToken:p.previewToken},headers:{'Idempotency-Key':randomUUID()}});evidence.simJobId=job.id;
+let result,ws,audioFrames=0;
+const deadline=Date.now()+120000;
+while(Date.now()<deadline){result=await api('/api/jobs/'+job.id);if(result.callId&&!ws){ws=new WebSocket(origin.replace('https:','wss:')+'/api/calls/'+result.callId+'/audio',{headers:{Authorization:authorization,Origin:origin}});ws.on('message',()=>audioFrames++);ws.on('error',()=>{});}if(['completed','failed','unknown','missed'].includes(result.state))break;await new Promise(r=>setTimeout(r,1000));}
+ws?.close();
+if(result?.state==='active'||result?.state==='dispatching')await api('/api/jobs/'+job.id+'/stop',{method:'POST'});
+const r=result.result??{};evidence.result={state:result.state,callId:result.callId,cleanupConfirmed:r.cleanupConfirmed,talkSeconds:r.talkSeconds,usage:r.usage,estimatedLiveCostUsd:r.estimatedLiveCostUsd,transcript:r.transcript,audioFrames};
+check('sim completed and cleaned',result.state==='completed'&&r.cleanupConfirmed);
+check('two-sided transcript',r.transcript?.some(t=>t.channel==='you')&&r.transcript?.some(t=>t.channel==='agent'));
+check('usage and cost',r.estimatedLiveCostUsd!=null);
+check('authenticated audio',audioFrames>0);
+const pbx=await api('/api/pbx/status');check('line released',!pbx.calls.length&&!pbx.availability.busy);
+if(output)writeFileSync(output,JSON.stringify(evidence,null,2)+'\n',{mode:0o600});

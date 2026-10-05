@@ -2,7 +2,8 @@
 
 Task branch: `codex/call-control-gui-20261005`; база `043ce43`.
 Кодовая контрольная точка: `5ed6284`; итоговый SHA документации сообщён в task-chat.
-Готово к review/интеграции координатором, не интегрировано и не развёрнуто.
+Не интегрировано в main. По новому прямому запросу владельца 2026-10-05
+GUI развёрнут на production с HTTPS-авторизацией: https://4pj.com.ru/.
 
 Добавлены операторский GUI, contacts/jobs API, SQLite history и scheduler,
 transactional claim до команды PBX, lifecycle gate и безопасный restore snapshot.
@@ -11,7 +12,8 @@ Deployment/runtime/backup: [DEPLOY.md](DEPLOY.md).
 
 PASS: 41 Node tests на Node 25.3.0 и 22.22.1, 3 Python regressions,
 localhost browser desktop/mobile smoke и независимый UI review ship.
-NOT VERIFIED: production deployment, новые PSTN и платный Live smoke.
+Production deployment, WebRTC, test:sim1, audio, schedule/restart/stop/cleanup проверены.
+NOT VERIFIED: новый PSTN smoke; выбор политики номеров ожидает владельца.
 Номера/allowlist/recording production не менялись; общий dotenv не копировался.
 
 Рекомендуемая проверка координатора после integration: npm ci, npm test,
@@ -22,7 +24,7 @@ Python regression, затем отдельно решить deployment с invent
 а окно допустимого опоздания — 120 секунд. Разрешение нового PSTN отдельно.
 
 Task worktree сохраняется. Push относится только к task branch;
-main push/deployment/cleanup не выполняются в этом task scope.
+main push/cleanup не выполнялись; scoped deployment разрешён отдельным запросом владельца.
 
 ## История: MVP1
 
@@ -37,3 +39,5 @@ Scoped commits/push task-ветки разрешены; на момент пер
 ## Синхронизация 2026-10-05
 
 По подтверждению владельца MVP1 интегрирован fast-forward в project main до `b85ea666bcbcdbeebbba3dda8026f3c3cedb0068`. Все 6 regression tests после интеграции прошли. Закрытый `.deployment-secrets.env` сохранён в project main с правами `600`, вне Git. Синхронизация не выполняет нового deployment или звонка. Следующая самостоятельная задача — GUI управления и серверное планирование звонков в отдельном task-chat/worktree.
+
+Публичный runtime evidence: [GUI HTTPS report](docs/evidence/gui-public-20261005.md).

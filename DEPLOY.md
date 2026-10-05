@@ -70,12 +70,12 @@ MVP1 **принят 2026-10-05**. После предоставления дос
 Проверены только один owner number, один voice и текущая инфраструктура. Массовый обзвон, другие операторы, восстановление backup в аварийном режиме, нагрузка и долгие звонки не проверялись. Поле `usage_seconds=null` означает неизвестное значение. Evidence: `docs/evidence/mvp1-20261005.md`.
 
 
-## GUI и scheduler: подготовлено локально, не развёрнуто
+## GUI и scheduler: развёрнуто с HTTPS-авторизацией
 
 В task-ветке добавлено серверное планирование и новый интерфейс телефонии.
 Два сервера и audio path сохранены. Новая версия требует Node 22.22.1+
 с доступным `node:sqlite`; Node сообщает ExperimentalWarning SQLite.
-Реальные API smoke, deployment и PSTN для этой функции не выполнялись.
+Deployment и Live API smoke этой функции выполнены 2026-10-05; новый PSTN smoke не выполнялся.
 
 Локальный запуск без model key и bridge пригоден для проверки формы/API:
 
@@ -113,8 +113,7 @@ WAL/SHM — часть работающей SQLite БД, не удалять в�
 `ReadWritePaths=/srv/gpt-voice/logs /srv/gpt-voice/data`. Stage содержит новые
 `lib`, `public` и restore script; `data` не попадает в stage и не перезаписывается.
 При нестандартном JOB_DB_PATH нужен отдельный systemd override ReadWritePaths.
-Эти изменения ещё не применены к production. Deployment — отдельное решение
-координатора после inventory/rollback и acceptance выбранного scope.
+Эти изменения применены к production по прямому запросу владельца после inventory/rollback.
 
 ### Restart, пропущенное время и неизвестный исход
 
@@ -154,8 +153,7 @@ umask 077
 tar -C /srv/gpt-voice/data -czf /root/gtaivc-calls-backup.tar.gz --exclude='*.lock*' .
 ```
 
-Это инструкции для отдельно авторизованной эксплуатации, не выполненные
-серверные команды текущей задачи. Backup защищать как личные данные.
+Backup защищать как личные данные. Во время deployment выполнен scoped backup, включая отдельную копию данных остановленного model service.
 При restore остановить сервис, сохранить текущий state отдельно, восстановить
 согласованный архив с владельцем gptvoice и закрытыми правами. **До запуска**:
 
