@@ -44,3 +44,10 @@ SIP Mango Registered, PCMA bridge сохранён. Zabbix active на обои�
 Нельзя выдавать симулятор за реальный PSTN acceptance. Проверен HTTP/WebRTC
 transport, живой микрофон пользователя с другого ПК не проверялся. Main не
 интегрирован; task branch/worktree сохраняются.
+
+
+Обновление после нового решения владельца: PSTN_NUMBER_POLICY=prefix7
+включена, любые номера +7 разрешены. Предыдущая заметка ALLOWED_NUMBERS=none
+описывает состояние до этого решения; при prefix7 доступ определяет
+проверка префикса. Новый PSTN smoke не выполнялся.
+Evidence: [Обновление +7/contacts](gui-prefix7-contacts-20261005.md).

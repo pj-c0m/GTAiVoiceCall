@@ -1,7 +1,7 @@
 # Handoff project main: GUI и устойчивый scheduler
 
 Task branch: `codex/call-control-gui-20261005`; база `043ce43`.
-Кодовая контрольная точка публичного GUI: `44ab5fe`; итоговый SHA документации сообщён в task-chat.
+Кодовая контрольная точка публичного GUI: `68f1808`; итоговый SHA документации сообщён в task-chat.
 Не интегрировано в main. По новому прямому запросу владельца 2026-10-05
 GUI развёрнут на production с HTTPS-авторизацией: https://4pj.com.ru/.
 
@@ -10,11 +10,13 @@ transactional claim до команды PBX, lifecycle gate и безопасн�
 Полный scope и evidence: [GUI report](docs/evidence/gui-scheduler-20261005.md).
 Deployment/runtime/backup: [DEPLOY.md](DEPLOY.md).
 
-PASS: 41 Node tests на Node 25.3.0 и 22.22.1, 3 Python regressions,
+PASS исходного GUI: 41 Node tests на Node 25.3.0 и 22.22.1, 3 Python regressions,
 localhost browser desktop/mobile smoke и независимый UI review ship.
 Production deployment, WebRTC, test:sim1, audio, schedule/restart/stop/cleanup проверены.
-NOT VERIFIED: новый PSTN smoke; выбор политики номеров ожидает владельца.
-Номера/allowlist/recording production не менялись; общий dotenv не копировался.
+NOT VERIFIED: новый реальный PSTN smoke. Владелец разрешил любые номера +7;
+на PBX включена PSTN_NUMBER_POLICY=prefix7. MAX_CALLS=1 и recording off
+сохранены; общий dotenv не копировался. Контакты пояснены в UI и проверены
+в независимых браузерных сессиях.
 
 Рекомендуемая проверка координатора после integration: npm ci, npm test,
 Python regression; deployment уже выполнен из подтверждённой task-ветки.
@@ -41,3 +43,6 @@ Scoped commits/push task-ветки разрешены; на момент пер
 По подтверждению владельца MVP1 интегрирован fast-forward в project main до `b85ea666bcbcdbeebbba3dda8026f3c3cedb0068`. Все 6 regression tests после интеграции прошли. Закрытый `.deployment-secrets.env` сохранён в project main с правами `600`, вне Git. Синхронизация не выполняет нового deployment или звонка. Следующая самостоятельная задача — GUI управления и серверное планирование звонков в отдельном task-chat/worktree.
 
 Публичный runtime evidence: [GUI HTTPS report](docs/evidence/gui-public-20261005.md).
+
+Последнее обновление +7/contacts: 44 Node tests и 5 Python regressions PASS.
+Evidence: [Политика +7 и контакты](docs/evidence/gui-prefix7-contacts-20261005.md).
