@@ -8,3 +8,5 @@ __pycache__/
 .vscode/
 .playwright-mcp/
 .DS_Store
+*.env
+Изображение ChatGPT*.png
