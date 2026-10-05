@@ -17,7 +17,7 @@
 
 ## Конфигурация и зависимости
 
-Локально нужны Node 22+, npm, Python 3 с venv, SSH, rsync и dig. `npm ci`; для offline regression — `python3 -m venv .venv` и `.venv/bin/pip install -r pbx-server/requirements.txt`.
+Локально нужны Node 22.22.1+, npm, Python 3 с venv, SSH, rsync и dig. `npm ci`; для offline regression — `python3 -m venv .venv` и `.venv/bin/pip install -r pbx-server/requirements.txt`.
 
 Общий закрытый dotenv находится в project main: `/Users/pj-com/CODEX/GTAiVoice Call/GTAiVoiceCall-MVP1.env`. Права `600`. Не публиковать, не source-ить и не пересылать его на сервер. `scripts/prepare-deploy.mjs` использует `util.parseEnv`, проверяет обязательные поля/authorizations/единственный разрешённый номер и создаёт две проекции. На model server передаются только OpenAI/model/bridge значения; SIP и ARI туда не попадают. На PBX нет OpenAI key.
 
@@ -68,3 +68,120 @@ MVP1 **принят 2026-10-05**. После предоставления дос
 Новая независимая проверка: `node scripts/live-smoke.mjs /absolute/path/config.env` (на model server можно без аргумента). Она явно читает key из выбранного dotenv, создаёт PCMA Live-сессию и проверяет started/closed. Нельзя source-ить общий config или выводить его. Последующий deployment всё равно сначала закрывает PSTN.
 
 Проверены только один owner number, один voice и текущая инфраструктура. Массовый обзвон, другие операторы, восстановление backup в аварийном режиме, нагрузка и долгие звонки не проверялись. Поле `usage_seconds=null` означает неизвестное значение. Evidence: `docs/evidence/mvp1-20261005.md`.
+
+
+## GUI и scheduler: подготовлено локально, не развёрнуто
+
+В task-ветке добавлено серверное планирование и новый интерфейс телефонии.
+Два сервера и audio path сохранены. Новая версия требует Node 22.22.1+
+с доступным `node:sqlite`; Node сообщает ExperimentalWarning SQLite.
+Реальные API smoke, deployment и PSTN для этой функции не выполнялись.
+
+Локальный запуск без model key и bridge пригоден для проверки формы/API:
+
+```bash
+npm ci
+npm test
+PORT=3000 JOB_DB_PATH=/absolute/private/path/calls.sqlite npm start
+```
+
+Не задавайте OpenAI/bridge credentials для offline проверки. Закрытый config
+main не нужен GUI worktree. Без bridge задания ожидают линию до истечения окна,
+затем становятся missed. `npm run check` является платным Live smoke и в этом
+цикле не запускается. Python regression: создать `.venv`, установить
+`pbx-server/requirements.txt`, запустить `.venv/bin/python -m unittest discover -s tests -p 'test_*.py'`.
+
+### Постоянные данные и единственный процесс
+
+Default БД: `/srv/gpt-voice/data/calls.sqlite` (локально `data/calls.sqlite`).
+`JOB_DB_PATH` может переопределить путь. БД содержит номера/имена, инструкции,
+тексты приложений и transcript; каталог 0700, файл/lock 0600. Каталог должен
+принадлежать сервисному пользователю и сохраняться между обновлениями.
+WAL/SHM — часть работающей SQLite БД, не удалять вручную. Данные и backup
+исключены из Git; перенос между рабочими местами требует отдельного защищённого
+переноса state, обычный clone содержит только код.
+
+Только один model-server процесс на БД. Lock проверяет PID владельца;
+нечитаемый lock, живой PID (включая переиспользованный) или lock recovery guard
+блокирует scheduler. После crash доказанно отсутствующий PID допускает recovery.
+Не удалять lock на работающем сервисе. При аварии во время lock recovery может
+остаться `.lock.recovery`: перед ручным удалением нужно убедиться, что сервис
+остановлен и восстанавливающего процесса нет. Ошибка хранения останавливает
+новые телефонные попытки; не создавать пустую БД вместо повреждённой.
+
+Заготовки installer/unit создают `data` и разрешают запись через
+`ReadWritePaths=/srv/gpt-voice/logs /srv/gpt-voice/data`. Stage содержит новые
+`lib`, `public` и restore script; `data` не попадает в stage и не перезаписывается.
+При нестандартном JOB_DB_PATH нужен отдельный systemd override ReadWritePaths.
+Эти изменения ещё не применены к production. Deployment — отдельное решение
+координатора после inventory/rollback и acceptance выбранного scope.
+
+### Restart, пропущенное время и неизвестный исход
+
+Задание запускается максимум через 120 секунд после назначенного времени.
+Занятый канал, отсутствие bridge hello и orphan PBX канал дают waiting;
+истёкшее окно — missed. DST gap/fold и отсутствие явного timezone отклоняются.
+Фиксируется UTC instant; timezone браузера после создания ничего не меняет.
+
+До команды PBX транзакционно сохраняются dispatching и attemptId. После этой
+границы исключение или crash не возвращают задание в очередь. При restart
+active/dispatching становятся unknown. Новый разговор требует нового задания;
+автоматических retries или recurring calls нет. Это at-most-once attempt,
+не гарантия exactly-once PSTN. Ошибка до фактической отправки после claim может
+потерять звонок — такой компромисс выбран ради отсутствия случайного дубля.
+
+Один канал enforced CallHub для новых jobs и старых immediate/campaign API.
+Отсутствие подтверждения PBX/Live cleanup удерживает gate. Лимит 30–1800 секунд
+(default 300) начинается от ответа; ожидание ответа ограничено 60 секундами.
+Закрытие browser не вызывает hangup server job. «Отмена» применима до claim;
+после начала используется «Завершить», и UI ждёт подтверждения lifecycle.
+
+Карточка проверки фиксирует профиль/session на 10 минут в памяти сервера;
+restart требует проверки заново. После POST задание устойчиво. Повтор HTTP
+использует Idempotency-Key; изменённый payload с тем же key получает 409.
+API mutations проверяют Origin. UI рассчитан на loopback/SSH tunnel, без
+публичной аутентификации; не публиковать порт в интернете в этом scope.
+
+### Backup, restore и rollback
+
+Остановите сервис перед файловым backup и проверьте отсутствие процесса.
+Копировать только `calls.sqlite` при активном WAL нельзя. Например, после
+остановки сохраните весь каталог данных, исключив process locks:
+
+```bash
+systemctl stop gpt-voice-web
+umask 077
+tar -C /srv/gpt-voice/data -czf /root/gtaivc-calls-backup.tar.gz --exclude='*.lock*' .
+```
+
+Это инструкции для отдельно авторизованной эксплуатации, не выполненные
+серверные команды текущей задачи. Backup защищать как личные данные.
+При restore остановить сервис, сохранить текущий state отдельно, восстановить
+согласованный архив с владельцем gptvoice и закрытыми правами. **До запуска**:
+
+```bash
+cd /srv/gpt-voice
+sudo -u gptvoice node scripts/restore-job-state.mjs /srv/gpt-voice/data/calls.sqlite
+```
+
+Restore script требует существующую БД и переводит runnable задания в unknown:
+старый snapshot не доказывает, что звонок не выполнился после backup. Активные
+попытки также unknown; терминальные состояния сохраняются. Оператор проверяет
+АТС и создаёт новые задания вручную. Никогда не возобновлять расписание прямо
+из старого backup. Rollback к прежнему коду сохраняет каталог БД; прежний код
+не выполняет новое расписание. При возвращении новой версии после restore
+обязательна эта подготовка, иначе старые задания могут быть выполнены повторно.
+
+### Интерпретация результата
+
+Completed требует PBX ended и подтверждённого закрытия Live. Failed — подтверждённый
+отказ/no answer. Unknown не является успешным звонком и не повторяется автоматически.
+Transcript/usage доступны после restart; промежуточные данные crash не выдаются
+за окончательные. «Оценка Live» использует сохранённый тариф проекта $0.05/мин
+по usage seconds, без PBX/backend. При отсутствии usage — «Нет данных», не $0.
+Тариф не подтверждает актуальный полный счёт провайдеров.
+
+Хранилище ограничено 10000 заданиями и 1000 контактами, list API — последними
+100 карточками. При заполнении создание отклоняется; автоматического удаления
+истории нет. Редактирование сохранённого задания выполняется отменой и созданием
+нового. Local tests не доказывают новый production/PSTN acceptance.

@@ -1,4 +1,30 @@
-# Handoff project main: MVP1
+# Handoff project main: GUI и устойчивый scheduler
+
+Task branch: `codex/call-control-gui-20261005`; база `043ce43`.
+Кодовая контрольная точка: `5ed6284`; итоговый SHA документации сообщён в task-chat.
+Готово к review/интеграции координатором, не интегрировано и не развёрнуто.
+
+Добавлены операторский GUI, contacts/jobs API, SQLite history и scheduler,
+transactional claim до команды PBX, lifecycle gate и безопасный restore snapshot.
+Полный scope и evidence: [GUI report](docs/evidence/gui-scheduler-20261005.md).
+Deployment/runtime/backup: [DEPLOY.md](DEPLOY.md).
+
+PASS: 41 Node tests на Node 25.3.0 и 22.22.1, 3 Python regressions,
+localhost browser desktop/mobile smoke и независимый UI review ship.
+NOT VERIFIED: production deployment, новые PSTN и платный Live smoke.
+Номера/allowlist/recording production не менялись; общий dotenv не копировался.
+
+Рекомендуемая проверка координатора после integration: npm ci, npm test,
+Python regression, затем отдельно решить deployment с inventory/rollback.
+Нужны Node 22.22.1+, постоянный writable data каталог и один model process;
+не размещать operator API публично без отдельной аутентификации.
+Главный runtime компромисс: unknown/missed не повторяются автоматически,
+а окно допустимого опоздания — 120 секунд. Разрешение нового PSTN отдельно.
+
+Task worktree сохраняется. Push относится только к task branch;
+main push/deployment/cleanup не выполняются в этом task scope.
+
+## История: MVP1
 
 Task branch: `codex/mvp1-launch-20261005`, база `a258a36`. **MVP1 принят 2026-10-05**: успешный `test:sim1`, один разрешённый PSTN-разговор, Live transcript/usage/cleanup; владелец подтвердил «Всё работало нормально» для слышимости, перебивания, паузы и завершения.
 
