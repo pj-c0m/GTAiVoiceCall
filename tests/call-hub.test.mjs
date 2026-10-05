@@ -1,0 +1,5 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {CallHub,PhoneCall} from '../lib/calls.mjs';
+function hub(){return Object.assign(Object.create(CallHub.prototype),{connected:true,ready:false,pbxSlots:new Set(),pendingCleanup:new Set(),calls:new Map(),finished:new Map()});}
+test('hello admission and orphan prevent simultaneous calls',()=>{const h=hub();assert.equal(h.availability().ready,false);h.onControl({type:'hello',calls:[{slot:1}]});assert.equal(h.availability().busy,true);h.onControl({type:'hello',calls:[]});assert.equal(h.availability().ready,true);assert.equal(h.availability().busy,false);h.pendingCleanup.add(1);assert.equal(h.availability().busy,true);h.onControl({type:'call.state',slot:1,state:'ended'});assert.equal(h.availability().busy,false);});
+test('result never equates local cleanup with PBX confirmation',()=>{const c=Object.assign(Object.create(PhoneCall.prototype),{pbxEnded:false,liveState:'closed',transcript:{turns:[]},session:{},startedAt:1});assert.equal(c.result().cleanupConfirmed,false);c.pbxEnded=true;assert.equal(c.result().cleanupConfirmed,true);});
