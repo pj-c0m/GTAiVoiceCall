@@ -10,6 +10,9 @@ import { fileURLToPath } from "node:url";
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 import { defaultProfile, loadProfiles, sessionFor, VOICES } from "./lib/profiles.mjs";
+import { openJobStore } from "./lib/job-store.mjs";
+import { Scheduler } from "./lib/scheduler.mjs";
+import { mountJobsApi } from "./lib/jobs-api.mjs";
 import { CallHub } from "./lib/calls.mjs";
 import { brainLog, callSummary, LOG_DIR, Transcript } from "./lib/log.mjs";
 
@@ -76,6 +79,26 @@ const app = express();
 app.set("trust proxy", true);
 app.use(express.json({ limit: "30mb" }));     // файлы-инструкции приходят base64 в JSON
 app.use(express.static(resolve(here, "public"), { index: "index.html" }));
+
+let jobStore, scheduler;
+try {
+  jobStore = openJobStore({path: process.env.JOB_DB_PATH ?? resolve(here, "data/calls.sqlite")});
+  scheduler = new Scheduler({store: jobStore, hub});
+  scheduler.start();
+} catch (error) { jobStore?.close(); jobStore = null; console.error("Scheduler недоступен:", error.message); }
+mountJobsApi(app, {store: jobStore, scheduler, allowedOrigins, buildBrief: async input => {
+  if (input.voice && !VOICES.has(input.voice)) throw Object.assign(new Error("Неизвестный голос"), {status:400});
+  const brief = await briefFrom(input);
+  const extra = [input.topic && `Тема разговора: ${input.topic}`, input.goal && `Цель разговора: ${input.goal}`, input.context].filter(Boolean).join("\n\n");
+  const session = sessionFor(brief.profile, {...brief, context: extra, backendModel: BACKEND_MODEL, phone:true, name:input.name});
+  if (extra) session.instructions += `\n\n# Задание оператора\n${extra}`;
+  return {profile:brief.profile, session};
+}});
+app.use(["/api/calls", "/api/campaigns"], (req, res, next) => {
+  if (req.method === "POST" && (!jobStore || scheduler?.failed)) { res.status(503).json({error:"Хранилище scheduler недоступно. Новые звонки остановлены"}); return; }
+  next();
+});
+
 
 app.get("/api/config", async (_request, response) => {
   const profiles = await loadProfiles();
@@ -285,4 +308,11 @@ const profiles = await loadProfiles();   // ранняя проверка: би�
 server.listen(port, process.env.HOST ?? "127.0.0.1", () => {
   brainLog("сервер: старт", { url: `http://localhost:${port}`, profiles: [...profiles.keys()], bridge: hub ? process.env.BRIDGE_URL : null, logs: LOG_DIR });
   if (!process.env.OPENAI_API_KEY) console.warn("! OPENAI_API_KEY не задан — сессии не откроются");
+});
+
+let shuttingDown = false;
+for (const signal of ["SIGTERM", "SIGINT"]) process.on(signal, () => {
+  if (shuttingDown) return; shuttingDown = true;
+  scheduler?.stop(); server.close();
+  setTimeout(() => { jobStore?.close(); process.exit(0); }, 16000).unref();
 });

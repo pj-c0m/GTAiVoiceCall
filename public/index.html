@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23121314' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M5 9v6M9.5 5v14M14 8v8M18.5 10v4'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/phone-control.css">
 <title>GTAiVoiceCall · GPT-Live</title>
 <style>
 /* ── Светлая студийная система: белое поле, серые плашки, графит и лайм ── */
@@ -218,7 +219,7 @@ select{padding-right:36px;appearance:none;background-image:linear-gradient(45deg
     <nav class="modes" role="tablist" aria-label="Режим">
       <button role="tab" data-mode="free" aria-selected="true"><b>Разговор</b><span>Просто поговорить с агентом голосом</span></button>
       <button role="tab" data-mode="prompt" aria-selected="false"><b>С промптом</b><span>Задать роль, приложить файлы-инструкции</span></button>
-      <button role="tab" data-mode="phone" aria-selected="false"><b>Телефония</b><span>Позвонить по списку номеров, по очереди</span></button>
+      <button role="tab" data-mode="phone" aria-selected="false"><b>Телефония</b><span>Подготовить и запланировать звонок</span></button>
     </nav>
     <div class="spacer"></div>
     <div class="lamp"><span id="lampText" aria-live="polite">Линия свободна</span><span class="timer" id="timer" hidden>0:00</span></div>
@@ -268,6 +269,7 @@ select{padding-right:36px;appearance:none;background-image:linear-gradient(45deg
     <p class="notice" id="notice"></p>
   </aside>
 
+  <section id="phone-control" class="phone-control" hidden></section>
   <main class="stage">
     <div class="duplex">
       <canvas id="meter" aria-hidden="true"></canvas>
@@ -309,6 +311,7 @@ select{padding-right:36px;appearance:none;background-image:linear-gradient(45deg
 <audio id="out" autoplay></audio>
 
 <script type="module">
+import { mountPhoneControl } from "/phone-control.mjs";
 const $ = (id) => document.getElementById(id);
 const DEMO = new URLSearchParams(location.search).has("demo");   // ?demo=1 — интерфейс без микрофона
 const body = document.body;
@@ -362,6 +365,8 @@ ui.base.addEventListener("change", loadBase);
 
 /* ── Режимы ─────────────────────────────────────────────────── */
 function setMode(m){
+  if (!["free","prompt","phone"].includes(m)) m="free";
+  body.dataset.mode = m; $("phone-control").hidden = m !== "phone";
   uiMode = m;
   document.querySelectorAll(".modes button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.mode === m)));
   ui.lede.innerHTML = LEDES[m];
@@ -375,6 +380,8 @@ function setMode(m){
 document.querySelectorAll(".modes button").forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
 let savedMode = "free"; try { savedMode = localStorage.getItem("mode") || "free"; } catch {}
 if (!new URLSearchParams(location.search).get("profile")) setMode(savedMode);
+
+await mountPhoneControl($("phone-control"), {config});
 
 /* ── Файлы-инструкции ───────────────────────────────────────── */
 function renderSlips(){

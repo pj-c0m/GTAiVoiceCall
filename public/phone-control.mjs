@@ -1,0 +1,67 @@
+export const createSubmission=payload=>({key:globalThis.crypto.randomUUID(),payload:structuredClone(payload)});
+export function timeLabel(job){return `${new Date(job.scheduledAt).toLocaleString('ru-RU',{timeZone:job.timeZone??'Europe/Moscow',dateStyle:'medium',timeStyle:'short'})} · ${job.timeZone??'Europe/Moscow'} · UTC${job.offset??'+03:00'}`;}
+const states={scheduled:'Запланирован',waiting:'Ожидает линию',dispatching:'Начинаем звонок',active:'На линии',completed:'Разговор завершён',failed:'Звонок не состоялся',cancelled:'Отменён',missed:'Время пропущено',unknown:'Исход требует проверки'};
+const el=(tag,text,className)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(className)n.className=className;return n;};
+export async function mountPhoneControl(root,{fetch:request=globalThis.fetch,config}={}){
+ root.innerHTML=`<div class="phone-heading"><div><h2>Управление звонками</h2><p>Подготовьте разговор, проверьте детали и выберите время.</p></div><p class="line-status" id="job-line" aria-live="polite">Проверяем линию…</p></div>
+ <div class="phone-layout"><section class="call-compose"><form id="job-form">
+ <h3>Новый звонок</h3><p class="form-note">Один адресат. Без автоматического повторного вызова.</p>
+ <label>Контакт<select name="contact"><option value="">Ввести номер вручную</option></select></label>
+ <div class="phone-row"><label>Номер<input name="to" type="tel" required maxlength="64" placeholder="+7 900 000-00-00"></label><label>Имя<input name="name" maxlength="60" placeholder="Как обращаться"></label></div>
+ <div class="contact-actions"><button type="button" id="contact-save">Сохранить контакт</button><button type="button" id="contact-delete" hidden>Удалить контакт</button></div>
+ <fieldset><legend>Когда позвонить</legend><label class="radio"><input type="radio" name="when" value="now" checked> Сейчас</label><label class="radio"><input type="radio" name="when" value="scheduled"> Выбрать время</label></fieldset>
+ <div id="job-time" hidden><label>Дата и время<input type="datetime-local" name="localTime"></label><label>Часовой пояс<input name="timeZone" value="Europe/Moscow" list="job-zones"><datalist id="job-zones"><option>Europe/Moscow</option><option>Europe/Berlin</option><option>Asia/Yekaterinburg</option><option>Asia/Novosibirsk</option><option>America/New_York</option></datalist></label><p class="form-note">Время относится к выбранному часовому поясу.</p></div>
+ <label>Тема разговора<input name="topic" maxlength="200" required placeholder="Например, подтверждение записи"></label>
+ <label>Цель<textarea name="goal" maxlength="6000" required rows="2" placeholder="Что нужно выяснить или согласовать"></textarea></label>
+ <div class="phone-row"><label>Сценарий<select name="profile"><option value="">Свой сценарий</option></select></label><label>Голос<select name="voice"></select></label></div>
+ <details class="extra-settings"><summary>Инструкции и файлы</summary><label>Дополнительные инструкции<textarea name="instructions" maxlength="40000" rows="4" placeholder="Оставьте пустым, чтобы использовать сценарий. Свой текст заменяет манеру речи профиля."></textarea></label><label class="file-pick">Приложить файлы<input id="job-files" type="file" multiple accept=".txt,.md,.csv,.json,.pdf,.docx,.html"></label><p class="form-note">До 50 файлов, 120 000 символов текста суммарно.</p><div id="job-file-list"></div></details>
+ <label>Максимальная длительность, минут<input name="duration" type="number" min="0.5" max="30" step="0.5" value="5" required></label><p class="form-note">Отсчёт начинается, когда адресат отвечает.</p>
+ <button class="primary" type="submit" id="job-preview">Проверить звонок</button></form>
+ <section id="job-review" hidden tabindex="-1"><h3>Проверьте перед запуском</h3><dl id="job-review-facts"></dl><p class="review-note">Номер должен быть разрешён на АТС. Планирование не открывает доступ к реальным звонкам.</p><div class="review-actions"><button type="button" id="job-edit">Изменить</button><button class="primary" type="button" id="job-confirm">Подтвердить</button></div></section>
+ <p id="job-error" role="alert" tabindex="-1"></p><p id="job-notice" role="status"></p></section>
+ <section class="call-workspace"><div class="jobs-header"><h3>Расписание и история</h3><button id="jobs-refresh" type="button">Обновить</button></div><p class="form-note">Сохранённые задания выполняются сервером и при закрытом браузере.</p><div id="job-list" aria-live="polite"></div><section id="job-detail" class="job-detail" hidden></section></section></div>`;
+ const $=id=>root.querySelector('#'+id), form=$('job-form'),field=name=>form.elements.namedItem(name);
+ let contacts=[],files=[],submission=null,selected=null,busy=false,uploading=0,disposed=false,timer;
+ const error=e=>{$('job-error').textContent=e.message??String(e);$('job-error').focus();};
+ const api=async(path,options={})=>{const response=await request(path,options);let data;try{data=await response.json();}catch{throw Error('Сервер не вернул данные. Попробуйте снова');}if(!response.ok)throw Object.assign(Error(data.error??'Ошибка сервера'),{status:response.status});return data;};
+ const json=(payload,key)=>({method:'POST',headers:{'Content-Type':'application/json',...(key?{'Idempotency-Key':key}:{})},body:JSON.stringify(payload)});
+ const clearError=()=>{$('job-error').textContent='';$('job-notice').textContent='';};
+ for(const p of config?.profiles??[]){const option=el('option',p.label);option.value=p.id;field('profile').append(option);}
+ for(const v of config?.voices??['alloy']){const option=el('option',v);option.value=v;field('voice').append(option);}field('voice').value=config?.defaultVoice??'alloy';
+ field('profile').onchange=()=>{const p=config?.profiles.find(p=>p.id===field('profile').value);if(p)field('voice').value=p.voice;};
+ form.addEventListener('change',()=>{$('job-time').hidden=field('when').value!=='scheduled';field('localTime').required=field('when').value==='scheduled';});
+ async function refreshContacts(){contacts=await api('/api/contacts');const select=field('contact');select.replaceChildren(new Option('Ввести номер вручную',''));for(const c of contacts)select.append(new Option(`${c.name||'Без имени'} · ${c.to}`,c.id));$('contact-delete').hidden=true;}
+ field('contact').onchange=()=>{const c=contacts.find(c=>c.id===field('contact').value);if(c){field('to').value=c.to;field('name').value=c.name;}$('contact-delete').hidden=!c;};
+ $('contact-save').onclick=async()=>{clearError();try{await api('/api/contacts',json({to:field('to').value,name:field('name').value}));await refreshContacts();$('job-notice').textContent='Контакт сохранён';}catch(e){error(e);}};
+ $('contact-delete').onclick=async()=>{clearError();try{await api('/api/contacts/'+encodeURIComponent(field('contact').value),{method:'DELETE'});await refreshContacts();}catch(e){error(e);}};
+ function renderFiles(){const list=$('job-file-list');list.replaceChildren();files.forEach((file,i)=>{const row=el('div',undefined,'attached-file');row.append(el('span',`${file.name} · ${file.text.length.toLocaleString('ru-RU')} символов`));const remove=el('button','Убрать');remove.type='button';remove.onclick=()=>{files.splice(i,1);renderFiles();};row.append(remove);list.append(row);});}
+ $('job-files').onchange=async e=>{const chosen=[...e.target.files];e.target.value='';uploading++;$('job-preview').disabled=true;clearError();try{for(const file of chosen){if(file.size>20*1024*1024)throw Error(`${file.name}: файл больше 20 МБ`);const data=await new Promise((resolve,reject)=>{const r=new FileReader();r.onerror=()=>reject(Error('Не удалось прочитать файл'));r.onload=()=>resolve(String(r.result).split(',')[1]);r.readAsDataURL(file);});const parsed=await api('/api/files',json({name:file.name,data}));files.push({name:parsed.name,text:parsed.text});renderFiles();}}catch(e){error(e);}finally{uploading--;$('job-preview').disabled=uploading>0;}};
+ function facts(target,entries){target.replaceChildren();for(const [label,value] of entries){const row=el('div');row.append(el('dt',label),el('dd',String(value??'—')));target.append(row);}}
+ form.onsubmit=async e=>{e.preventDefault();if(busy||uploading)return;busy=true;clearError();$('job-preview').disabled=true;try{
+  const payload={to:field('to').value,name:field('name').value,when:field('when').value,localTime:field('localTime').value,timeZone:field('timeZone').value,topic:field('topic').value,goal:field('goal').value,instructions:field('instructions').value,profile:field('profile').value,voice:field('voice').value,maxDurationSeconds:Number(field('duration').value)*60,files};
+  const preview=await api('/api/jobs/preview',json(payload));submission=createSubmission(payload);
+  facts($('job-review-facts'),[['Адресат',`${preview.name||'Без имени'} · ${preview.to}`],['Когда',preview.when==='now'?'Сейчас':timeLabel(preview)],['Тема',preview.topic],['Цель',preview.goal],['Сценарий',preview.profileLabel],['Голос',preview.voice],['Инструкции',preview.instructions||'Из сценария'],['Файлы',preview.files.map(f=>`${f.name} (${f.text.length} символов)`).join(', ')||'Нет'],['Длительность',`${preview.maxDurationSeconds/60} мин`]]);
+  form.hidden=true;$('job-review').hidden=false;$('job-confirm').textContent=preview.when==='now'?'Позвонить сейчас':'Запланировать звонок';$('job-review').focus();
+ }catch(e){error(e);}finally{busy=false;$('job-preview').disabled=false;}};
+ $('job-edit').onclick=()=>{submission=null;form.hidden=false;$('job-review').hidden=true;field('to').focus();clearError();};
+ $('job-confirm').onclick=async()=>{if(busy||!submission)return;busy=true;clearError();$('job-confirm').disabled=true;$('job-edit').disabled=true;try{
+  const job=await api('/api/jobs',json(submission.payload,submission.key));submission=null;selected=job.id;form.hidden=false;$('job-review').hidden=true;
+  $('job-notice').textContent='Задание сохранено. Эту страницу можно закрыть.';await refresh();
+ }catch(e){error(e);$('job-confirm').textContent='Повторить отправку';}finally{busy=false;$('job-confirm').disabled=false;$('job-edit').disabled=false;}};
+ async function action(id,stop=false){clearError();try{await api('/api/jobs/'+encodeURIComponent(id)+(stop?'/stop':''),{method:stop?'POST':'DELETE'});await refresh();}catch(e){error(e);}}
+ async function detail(id){selected=id;const j=await api('/api/jobs/'+encodeURIComponent(id)),target=$('job-detail');target.hidden=false;target.replaceChildren(el('h3',j.topic||'Детали звонка'));const dl=el('dl');const r=j.result;
+  facts(dl,[['Адресат',`${j.name||'Без имени'} · ${j.to}`],['Статус',states[j.state]],['Время',timeLabel(j)],['Причина',j.reason||r?.reason||'—'],['Цель',j.goal||'—'],['Голос',j.voice],['Сценарий',j.profileLabel],['На линии',r?.talkSeconds===undefined?'Нет данных':`${r.talkSeconds} с`],['Ожидание ответа',r?.ringSeconds===undefined?'Нет данных':`${r.ringSeconds} с`],['Оценка Live',r?.estimatedLiveCostUsd==null?'Нет данных':`$${r.estimatedLiveCostUsd.toFixed(4)}`],['Обновлено',new Date().toLocaleTimeString('ru-RU')]]);target.append(dl,el('p','Оценка включает только Live по тарифу проекта; PBX и backend не включены.','form-note'));
+  if(['scheduled','waiting'].includes(j.state)){const b=el('button','Отменить звонок');b.onclick=()=>action(j.id);target.append(b);}else if(['active','dispatching'].includes(j.state)){const b=el('button','Завершить звонок');b.onclick=async()=>{b.disabled=true;b.textContent='Завершаем…';await action(j.id,true);};target.append(b);}
+  if(j.state==='unknown'||j.state==='missed')target.append(el('p',j.state==='unknown'?'Автоматического повтора не будет. Проверьте состояние АТС перед созданием нового задания.':'Автоматического повтора не будет. Выберите новое время и создайте новое задание.','result-note'));
+  target.append(el('h4','Расшифровка'));const transcript=el('div',undefined,'job-transcript');for(const turn of r?.transcript??[]){const node=el('article');node.append(el('b',turn.channel==='you'?(j.name||'Клиент'):'Агент'),el('p',turn.text));transcript.append(node);}if(!transcript.children.length)transcript.append(el('p','Расшифровка пока отсутствует.','form-note'));target.append(transcript);
+ }
+ async function refresh(){
+  try{const [data,pbx]=await Promise.all([api('/api/jobs'),api('/api/pbx/status')]);$('job-line').textContent=pbx.availability?.reason??'Мост с АТС не настроен';const list=$('job-list');list.replaceChildren();if(!data.jobs.length)list.append(el('p','Здесь появятся запланированные звонки и результаты разговоров.','jobs-empty'));
+   for(const j of data.jobs){const row=el('button',undefined,'job-row');row.type='button';row.dataset.state=j.state;row.setAttribute('aria-pressed',String(selected===j.id));const left=el('span');left.append(el('b',j.name||j.to),el('span',j.topic||'Без темы'));const right=el('span');right.append(el('b',states[j.state]),el('span',timeLabel(j)));row.append(left,right);row.onclick=()=>detail(j.id).catch(error);list.append(row);}if(selected)await detail(selected);
+  }catch(e){error(e);}
+ }
+ $('jobs-refresh').onclick=refresh;
+ await refreshContacts().catch(error);await refresh();
+ const poll=()=>{if(disposed)return;if(!document.hidden&&!root.hidden)refresh().finally(()=>{timer=setTimeout(poll,4000);});else timer=setTimeout(poll,4000);};timer=setTimeout(poll,4000);
+ return {dispose(){disposed=true;clearTimeout(timer);},refresh};
+}
