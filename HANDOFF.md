@@ -2,7 +2,7 @@
 
 Task branch: `codex/call-control-gui-20261005`; база `043ce43`.
 Кодовая контрольная точка публичного GUI: `68f1808`; итоговый SHA документации сообщён в task-chat.
-Не интегрировано в main. По новому прямому запросу владельца 2026-10-05
+Интегрировано в main 2026-10-06. По новому прямому запросу владельца 2026-10-05
 GUI развёрнут на production с HTTPS-авторизацией: https://4pj.com.ru/.
 
 Добавлены операторский GUI, contacts/jobs API, SQLite history и scheduler,
@@ -46,3 +46,18 @@ Scoped commits/push task-ветки разрешены; на момент пер
 
 Последнее обновление +7/contacts: 44 Node tests и 5 Python regressions PASS.
 Evidence: [Политика +7 и контакты](docs/evidence/gui-prefix7-contacts-20261005.md).
+
+
+## Синхронизация всех чатов проекта — 2026-10-06
+
+По запросу владельца проверены все три checkout и обе task-ветки GTAiVoiceCall.
+MVP1 `b85ea66` уже входил в main; ветка GUI до `a819034` интегрирована
+fast-forward без конфликтов. Все рабочие каталоги были чистыми,
+других task-веток с неподтверждёнными изменениями не найдено.
+
+После интеграции: 44 Node tests, 5 Python regressions, shell syntax и
+git diff --check PASS. Закрытый guipass.env сохранён в project main с
+правами 0600, вне Git; существующий deployment state сохранён.
+Синхронизация включает push main в GitHub; deployment и новые звонки
+не выполнялись. Task worktree и ветки сохранены: закрытие/удаление
+не входит в этот запрос.
